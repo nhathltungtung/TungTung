@@ -1,0 +1,88 @@
+import { StatMetric, RecentOrder } from "@/types";
+
+export const sampleMetrics: readonly StatMetric[] = [
+  {
+    id: "metric-1",
+    title: "Total Revenue",
+    value: "$45,231.89",
+    change: "+20.1%",
+    trend: "up",
+    periodDescription: "vs last month",
+    iconType: "revenue",
+  },
+  {
+    id: "metric-2",
+    title: "Total Sales",
+    value: "3,450",
+    change: "+12.4%",
+    trend: "up",
+    periodDescription: "vs last month",
+    iconType: "sales",
+  },
+  {
+    id: "metric-3",
+    title: "Active Users",
+    value: "2,420",
+    change: "+18.2%",
+    trend: "up",
+    periodDescription: "vs last month",
+    iconType: "users",
+  },
+  {
+    id: "metric-4",
+    title: "Bounce Rate",
+    value: "2.45%",
+    change: "-4.5%",
+    trend: "down",
+    periodDescription: "vs last month",
+    iconType: "growth",
+  },
+];
+
+export const sampleRecentOrders: readonly RecentOrder[] = [
+  {
+    id: "ORD-9821",
+    customerName: "Alexandre Martin",
+    customerEmail: "alexandre@example.com",
+    productName: "TailAdmin UI Enterprise License",
+    amount: 1250.0,
+    date: "Sep 07, 2026",
+    status: "Completed",
+  },
+  {
+    id: "ORD-9820",
+    customerName: "Sophia Rodriguez",
+    customerEmail: "sophia.r@techcorp.io",
+    productName: "Cloud Backend Cluster Setup",
+    amount: 850.0,
+    date: "Sep 07, 2026",
+    status: "Processing",
+  },
+  {
+    id: "ORD-9819",
+    customerName: "David Chen",
+    customerEmail: "dchen@innovate.co",
+    productName: "Next.js Consulting (10h package)",
+    amount: 2100.0,
+    date: "Sep 06, 2026",
+    status: "Completed",
+  },
+  {
+    id: "ORD-9818",
+    customerName: "Emma Watson",
+    customerEmail: "e.watson@studios.com",
+    productName: "Tailwind UI Components Addon",
+    amount: 199.0,
+    date: "Sep 06, 2026",
+    status: "Pending",
+  },
+  {
+    id: "ORD-9817",
+    customerName: "Liam Johnson",
+    customerEmail: "ljohnson@enterprise.net",
+    productName: "Dedicated Support Retainer",
+    amount: 4500.0,
+    date: "Sep 05, 2026",
+    status: "Completed",
+  },
+];

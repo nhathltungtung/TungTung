@@ -1,0 +1,20 @@
+services:
+  api-gw:
+    depends_on: []
+
+  studio:
+    ports:
+      - "54323:3000"
+
+  db:
+    volumes:
+      - ../supabase/migrations/20260909000000_init_auth_and_profiles.sql:/docker-entrypoint-initdb.d/migrations/99-app-profiles.sql:z
+      - ../supabase/seed.sql:/docker-entrypoint-initdb.d/init-scripts/99-seed.sql:z
+
+  mail:
+    container_name: supabase-mail
+    image: inbucket/inbucket:3.0.4
+    restart: unless-stopped
+    ports:
+      - "54324:9000"
+      - "2500:2500"

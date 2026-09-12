@@ -1,0 +1,47 @@
+# ==============================================================================
+# Supabase CLI Configuration
+# ==============================================================================
+project_id = "base-nextjs"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+# Port 54322 is used to avoid conflict with existing PostgreSQL on port 5432
+port = 54322
+shadow_port = 54320
+major_version = 15
+
+[studio]
+enabled = true
+# Port 54323 is used to avoid conflict with Next.js on port 3000
+port = 54323
+
+[inbucket]
+enabled = true
+# Local email catcher web UI
+port = 54324
+
+[storage]
+enabled = true
+file_size_limit = "50MiB"
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["http://localhost:3000/**"]
+jwt_expiry = 3600
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+# Disabled confirmations for smoother local testing (auto confirms user)
+enable_confirmations = false
+double_confirm_changes = false
+
+[analytics]
+enabled = false
