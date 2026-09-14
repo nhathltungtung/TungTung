@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/ui/table/DataTable";
@@ -29,12 +29,21 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { useRouter } from "next/navigation";
+import { getFromLocalStorage } from "@/lib/supabase/roofing-service";
+import { saveRoofingOrderAction } from "@/app/(admin)/admin/orders/actions";
+import { SAMPLE_EXCEL_ORDER } from "@/lib/roofing-calc";
+import { RotateCw } from "lucide-react";
+
 interface OrderTableClientProps {
   initialOrders: RoofingOrder[];
 }
 
 export function OrderTableClient({ initialOrders }: OrderTableClientProps) {
+  const router = useRouter();
+  const [orders, setOrders] = useState<RoofingOrder[]>(initialOrders);
   const [selectedOrder, setSelectedOrder] = useState<RoofingOrder | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [deleteDialog, setDeleteDialog] = useState<{
     isOpen: boolean;
     order: RoofingOrder | null;
@@ -43,6 +52,51 @@ export function OrderTableClient({ initialOrders }: OrderTableClientProps) {
     order: null,
   });
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Cập nhật khi dữ liệu Server Components thay đổi qua revalidatePath
+  useEffect(() => {
+    setOrders(initialOrders);
+  }, [initialOrders]);
+
+  // Quét bộ nhớ máy (localStorage) khi vào trang: Đảm bảo KHÔNG BAO GIỜ MẤT ĐƠN kể cả khi mạng chậm/offline
+  useEffect(() => {
+    try {
+      const localOrders = getFromLocalStorage();
+      if (localOrders && localOrders.length > 0) {
+        setOrders((prev) => {
+          const existingCodes = new Set(prev.map((o) => o.orderCode));
+          const toAdd = localOrders.filter(
+            (o) => !existingCodes.has(o.orderCode) && o.orderCode !== SAMPLE_EXCEL_ORDER.orderCode
+          );
+          if (toAdd.length > 0) {
+            // Tự động đồng bộ ngầm đơn offline lên CSDL Supabase
+            toAdd.forEach((offOrder) => {
+              saveRoofingOrderAction(offOrder)
+                .then((res) => {
+                  if (res.success) {
+                    toast.success(`Đã tự động đồng bộ đơn ${offOrder.orderCode} từ thiết bị lên CSDL!`);
+                  }
+                })
+                .catch(() => {});
+            });
+            return [...toAdd, ...prev];
+          }
+          return prev;
+        });
+      }
+    } catch (e) {
+      console.error("Lỗi quét offline orders:", e);
+    }
+  }, []);
+
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    router.refresh();
+    setTimeout(() => {
+      setIsRefreshing(false);
+      toast.success("Đã làm mới danh sách đơn hàng!");
+    }, 600);
+  };
 
   const handleExportExcel = (order: RoofingOrder) => {
     try {
@@ -57,6 +111,11 @@ export function OrderTableClient({ initialOrders }: OrderTableClientProps) {
     order: RoofingOrder,
     newStatus: "pending" | "cutting" | "completed" | "cancelled"
   ) => {
+    // Cập nhật ngay trên giao diện để người dùng thấy tức thì
+    setOrders((prev) =>
+      prev.map((o) => (o.id === order.id || o.orderCode === order.orderCode ? { ...o, status: newStatus } : o))
+    );
+
     try {
       const res = await updateRoofingOrderStatusAction(
         order.id,
@@ -75,17 +134,24 @@ export function OrderTableClient({ initialOrders }: OrderTableClientProps) {
 
   const handleDeleteOrder = async () => {
     if (!deleteDialog.order) return;
+    const targetOrder = deleteDialog.order;
     setIsDeleting(true);
+
+    // Cập nhật ngay trên giao diện để tránh kẹt
+    setOrders((prev) =>
+      prev.filter((o) => o.id !== targetOrder.id && o.orderCode !== targetOrder.orderCode)
+    );
+
     try {
       const res = await deleteRoofingOrderAction(
-        deleteDialog.order.id,
-        deleteDialog.order.orderCode
+        targetOrder.id,
+        targetOrder.orderCode
       );
       if (!res.success) {
         toast.error(res.error || "Lỗi khi xoá đơn hàng.");
         return;
       }
-      toast.success(`Đã xoá đơn ${deleteDialog.order.orderCode} thành công!`);
+      toast.success(`Đã xoá đơn ${targetOrder.orderCode} thành công!`);
       setDeleteDialog({ isOpen: false, order: null });
     } catch {
       toast.error("Có lỗi xảy ra khi xoá đơn.");
@@ -293,19 +359,32 @@ export function OrderTableClient({ initialOrders }: OrderTableClientProps) {
           </p>
         </div>
 
-        <Link
-          href="/admin/orders/create"
-          className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-[#3c50e0] hover:bg-[#3344bd] active:bg-[#2a3bb8] rounded-lg shadow-xs transition-colors"
-        >
-          <Plus className="w-4 h-4" /> Tạo Đơn Cắt Tôn Mới
-        </Link>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+            title="Tải lại danh sách đơn hàng mới nhất"
+          >
+            <RotateCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin text-primary" : ""}`} />
+            Làm Mới
+          </button>
+
+          <Link
+            href="/admin/orders/create"
+            className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-[#3c50e0] hover:bg-[#3344bd] active:bg-[#2a3bb8] rounded-lg shadow-xs transition-colors"
+          >
+            <Plus className="w-4 h-4" /> Tạo Đơn Cắt Tôn Mới
+          </Link>
+        </div>
       </div>
 
       {/* Main DataTable */}
       <div className="bg-white dark:bg-[#24303f] p-4 rounded-xl shadow-xs border border-slate-200 dark:border-slate-800">
         <DataTable
           columns={columns}
-          data={initialOrders}
+          data={orders}
           searchKey="orderCode"
           searchPlaceholder="Tìm kiếm theo mã đơn (HĐ-...) hoặc tên khách..."
         />

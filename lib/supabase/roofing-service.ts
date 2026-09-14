@@ -68,33 +68,23 @@ export async function saveRoofingOrder(order: RoofingOrder): Promise<{ success: 
   try {
     const supabase = createClient();
 
-    // 1. Kiểm tra kết nối Supabase với timeout tối đa 600ms
-    const pingPromise = supabase.from("roofing_orders").select("id").limit(1);
-    const timeoutPromise = new Promise<{ error: Error | null }>((resolve) =>
-      setTimeout(() => resolve({ error: new Error("Supabase offline timeout") }), 600)
-    );
-    const { error: pingError } = await Promise.race([pingPromise, timeoutPromise]);
-    if (pingError) {
-      throw pingError;
-    }
-
-    // 2. Chuẩn bị dữ liệu đơn hàng chính
+    // 1. Chuẩn bị dữ liệu đơn hàng chính (ép kiểu số an toàn, tránh NaN)
     const orderPayload = {
-      id: order.id.startsWith("order-") || order.id.startsWith("sample-") ? undefined : order.id,
       order_code: order.orderCode,
-      customer_name: order.customer.name || "Khách lẻ",
-      customer_phone: order.customer.phone || null,
-      customer_address: order.customer.address || null,
-      order_date: order.createdAt,
-      total_amount: order.totalAmount,
-      discount: order.discount,
-      deposit: order.deposit,
-      remaining_amount: order.remainingAmount,
-      status: order.status,
-      note: order.customer.note || null,
+      customer_name: order.customer.name?.trim() || "Khách lẻ",
+      customer_phone: order.customer.phone?.trim() || null,
+      customer_address: order.customer.address?.trim() || null,
+      order_date: order.createdAt || new Date().toISOString().split("T")[0],
+      total_amount: Number(order.totalAmount) || 0,
+      discount: Number(order.discount) || 0,
+      deposit: Number(order.deposit) || 0,
+      remaining_amount: Number(order.remainingAmount) || 0,
+      status: order.status || "pending",
+      note: order.customer.note?.trim() || null,
+      updated_at: new Date().toISOString(),
     };
 
-    // Upsert bảng roofing_orders
+    // Upsert bảng roofing_orders theo order_code
     const { data: savedOrder, error: orderError } = await supabase
       .from("roofing_orders")
       .upsert(orderPayload, { onConflict: "order_code" })
@@ -114,17 +104,21 @@ export async function saveRoofingOrder(order: RoofingOrder): Promise<{ success: 
     // 3. Lưu từng nhóm tôn và các tấm cắt lẻ
     for (let gIdx = 0; gIdx < order.roofingGroups.length; gIdx++) {
       const grp = order.roofingGroups[gIdx];
+      if (!grp.productName?.trim() && grp.items.every((it) => !it.length && !it.quantity)) {
+        continue;
+      }
+
       const { data: savedGroup, error: grpError } = await supabase
         .from("roofing_order_groups")
         .insert({
           order_id: orderId,
-          product_name: grp.productName,
-          width: grp.width,
-          unit_price: grp.unitPrice,
-          total_pieces: grp.totalPieces,
-          total_meters: grp.totalMeters,
-          total_square_meters: grp.totalSquareMeters,
-          subtotal: grp.subtotal,
+          product_name: grp.productName?.trim() || "Tôn Lợp",
+          width: Number(grp.width) || 1.08,
+          unit_price: Number(grp.unitPrice) || 0,
+          total_pieces: Number(grp.totalPieces) || 0,
+          total_meters: Number(grp.totalMeters) || 0,
+          total_square_meters: Number(grp.totalSquareMeters) || 0,
+          subtotal: Number(grp.subtotal) || 0,
           sort_order: gIdx,
         })
         .select("id")
@@ -132,34 +126,33 @@ export async function saveRoofingOrder(order: RoofingOrder): Promise<{ success: 
 
       if (grpError || !savedGroup) continue;
 
-      // Lưu các dòng cắt lẻ của nhóm này
-      const cutItemsPayload = grp.items.map((item, iIdx) => ({
-        group_id: savedGroup.id,
-        length: item.length,
-        quantity: item.quantity,
-        total_meters: item.totalMeters,
-        sort_order: iIdx,
-      }));
-
-      if (cutItemsPayload.length > 0) {
+      const validCutItems = grp.items.filter((it) => Number(it.length) > 0 || Number(it.quantity) > 0);
+      if (validCutItems.length > 0) {
+        const cutItemsPayload = validCutItems.map((item, iIdx) => ({
+          group_id: savedGroup.id,
+          length: Number(item.length) || 0,
+          quantity: Number(item.quantity) || 0,
+          total_meters: Number(item.totalMeters) || 0,
+          sort_order: iIdx,
+        }));
         await supabase.from("roofing_order_cut_items").insert(cutItemsPayload);
       }
     }
 
-    // 4. Lưu các phụ kiện
-    const accessoriesPayload = order.accessories.map((acc, aIdx) => ({
-      order_id: orderId,
-      name: acc.name,
-      length: acc.length !== undefined ? acc.length : null,
-      pieces: acc.pieces !== undefined ? acc.pieces : null,
-      unit: acc.unit,
-      quantity: acc.quantity,
-      unit_price: acc.unitPrice,
-      subtotal: acc.subtotal,
-      sort_order: aIdx,
-    }));
-
-    if (accessoriesPayload.length > 0) {
+    // 4. Lưu các phụ kiện (loại bỏ dòng rỗng)
+    const validAccessories = order.accessories.filter((a) => a.name && a.name.trim().length > 0);
+    if (validAccessories.length > 0) {
+      const accessoriesPayload = validAccessories.map((acc, aIdx) => ({
+        order_id: orderId,
+        name: acc.name.trim(),
+        length: acc.length !== undefined && !isNaN(Number(acc.length)) ? Number(acc.length) : null,
+        pieces: acc.pieces !== undefined && !isNaN(Number(acc.pieces)) ? Number(acc.pieces) : null,
+        unit: acc.unit || "Cây",
+        quantity: Number(acc.quantity) || 1,
+        unit_price: Number(acc.unitPrice) || 0,
+        subtotal: Number(acc.subtotal) || 0,
+        sort_order: aIdx,
+      }));
       await supabase.from("roofing_order_accessories").insert(accessoriesPayload);
     }
 
@@ -235,8 +228,9 @@ export async function getRoofingOrders(): Promise<RoofingOrder[]> {
       `)
       .order("created_at", { ascending: false });
 
+    // Tăng timeout lên 8 giây để mạng chậm vẫn tải đủ
     const timeoutPromise = new Promise<{ data: null; error: Error }>((resolve) =>
-      setTimeout(() => resolve({ data: null, error: new Error("Supabase offline timeout") }), 600)
+      setTimeout(() => resolve({ data: null, error: new Error("Supabase timeout") }), 8000)
     );
 
     const { data: dbOrders, error } = await Promise.race([fetchPromise, timeoutPromise]);
@@ -464,8 +458,8 @@ export async function getWarehouseAccessories(): Promise<AccessoryPreset[]> {
   }
 }
 
-// Helper: Lưu LocalStorage
-function saveToLocalStorage(order: RoofingOrder) {
+// Helper: Lưu LocalStorage (Export để OrderTableClient dùng được)
+export function saveToLocalStorage(order: RoofingOrder) {
   if (typeof window === "undefined") return;
   try {
     const stored = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || "[]");
@@ -477,8 +471,8 @@ function saveToLocalStorage(order: RoofingOrder) {
   }
 }
 
-// Helper: Lấy LocalStorage
-function getFromLocalStorage(): RoofingOrder[] {
+// Helper: Lấy LocalStorage (Export để OrderTableClient dùng được)
+export function getFromLocalStorage(): RoofingOrder[] {
   if (typeof window === "undefined") return [SAMPLE_EXCEL_ORDER];
   try {
     const stored = localStorage.getItem(LOCAL_STORAGE_KEY);

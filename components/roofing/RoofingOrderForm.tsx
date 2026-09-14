@@ -15,12 +15,15 @@ import {
   numberToVietnameseWords,
   SAMPLE_EXCEL_ORDER,
 } from "@/lib/roofing-calc";
+import { useRouter } from "next/navigation";
 import { exportRoofingOrderToExcel } from "@/lib/roofing-excel";
 import {
   saveRoofingOrder,
   getRoofingProducts,
   getWarehouseAccessories,
+  saveToLocalStorage,
 } from "@/lib/supabase/roofing-service";
+import { saveRoofingOrderAction } from "@/app/(admin)/admin/orders/actions";
 import { RoofingInvoicePrint } from "./RoofingInvoicePrint";
 import {
   RoofingProductPreset,
@@ -93,6 +96,7 @@ export function createBlankRoofingOrder(isDynamic = false): RoofingOrder {
 }
 
 export function RoofingOrderForm() {
+  const router = useRouter();
   // Trạng thái đơn hàng: Khởi tạo giá trị deterministic để tránh Hydration Mismatch giữa SSR và Client
   const [order, setOrder] = useState<RoofingOrder>(() => createBlankRoofingOrder(false));
 
@@ -500,18 +504,35 @@ export function RoofingOrderForm() {
     }
   };
 
-  // Lưu đơn
+  // Lưu đơn hàng: Ưu tiên Server Action lưu trực tiếp vào CSDL Supabase, đồng bộ bộ nhớ thiết bị và chuyển về danh sách đơn
   const handleSaveOrder = async () => {
     setIsSaving(true);
     try {
-      const result = await saveRoofingOrder(order);
-      if (result.isCloud) {
-        toast.success(result.message);
-      } else {
-        toast.info(result.message);
+      // 1. Thử lưu qua Server Action (Server-side execution với Service Role fallback)
+      const res = await saveRoofingOrderAction(order);
+      if (res.success) {
+        saveToLocalStorage(order);
+        toast.success(res.message || `Đã lưu đơn hàng ${order.orderCode} thành công!`);
+        router.push("/admin/orders");
+        router.refresh();
+        return;
       }
-    } catch {
-      toast.success(`Đã lưu đơn hàng ${order.orderCode}!`);
+
+      // 2. Fallback nếu Server Action báo lỗi
+      const clientRes = await saveRoofingOrder(order);
+      if (clientRes.success) {
+        toast.success(clientRes.message);
+        router.push("/admin/orders");
+        router.refresh();
+      } else {
+        toast.error(res.error || "Không thể lưu đơn hàng vào CSDL.");
+      }
+    } catch (err: unknown) {
+      console.error("Lỗi khi lưu đơn:", err);
+      saveToLocalStorage(order);
+      toast.warning(`Đã lưu đơn ${order.orderCode} vào bộ nhớ máy (Offline Mode).`);
+      router.push("/admin/orders");
+      router.refresh();
     } finally {
       setIsSaving(false);
     }
