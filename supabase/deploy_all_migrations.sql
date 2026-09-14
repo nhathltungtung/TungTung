@@ -7,11 +7,19 @@
 -- ==============================================================================
 -- 0. Ensure Required Schemas & Roles for PostgREST and Realtime
 -- ==============================================================================
-CREATE SCHEMA IF NOT EXISTS graphql_public;
-GRANT USAGE ON SCHEMA graphql_public TO anon, authenticated, service_role, postgres;
+DO $$ 
+BEGIN
+    CREATE SCHEMA IF NOT EXISTS graphql_public;
+    GRANT USAGE ON SCHEMA graphql_public TO anon, authenticated, service_role, postgres;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
 
-CREATE SCHEMA IF NOT EXISTS _realtime;
-GRANT ALL ON SCHEMA _realtime TO supabase_admin, postgres;
+DO $$ 
+BEGIN
+    CREATE SCHEMA IF NOT EXISTS _realtime;
+    GRANT ALL ON SCHEMA _realtime TO supabase_admin, postgres;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
 
 -- ==============================================================================
 -- 1. Create Public Profiles Table
