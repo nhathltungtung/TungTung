@@ -16,11 +16,13 @@ export interface RoofingProductPreset {
 
 export interface AccessoryPreset {
   id: string;
+  code?: string; // Mã phụ kiện trong kho (VD: MANG300, XOI300, SUON300, KEO-A500, VIT-4, ...)
   name: string;
-  unit: "MD" | "LỌ" | "TÚI" | "CÁI" | "BỘ" | "CÂY" | "KG";
+  unit: string; // Đơn vị tính chuẩn (Mét dài, Lọ, Túi, Cái, Bộ, Cây, Kg...)
   unitPrice: number; // Đơn giá (đ)
-  category: "phu_kien_ton" | "vat_tu_phu";
+  category: "phu_kien_ton" | "vat_tu_phu" | "phu_kien" | "vat_tu_khac" | string;
   defaultQty?: number;
+  stockQty?: number; // Số lượng tồn kho thực tế
 }
 
 export interface CustomerPreset {
@@ -161,83 +163,103 @@ export const ROOFING_PRODUCTS_CATALOG: RoofingProductPreset[] = [
 export const ACCESSORIES_CATALOG: AccessoryPreset[] = [
   {
     id: "mang-inox-300",
+    code: "MANG300",
     name: "Máng Inox 304 Khổ 300",
-    unit: "MD",
+    unit: "Mét dài",
     unitPrice: 304000,
     category: "phu_kien_ton",
     defaultQty: 4,
+    stockQty: 62,
   },
   {
     id: "xoi-ton-300",
+    code: "XOI300",
     name: "Xối Tôn Kẽm Mạ Màu Khổ 300",
-    unit: "MD",
+    unit: "Mét dài",
     unitPrice: 45000,
     category: "phu_kien_ton",
     defaultQty: 6,
+    stockQty: 59,
   },
   {
     id: "suon-ton-300",
+    code: "SUON300",
     name: "Sườn Tôn Dập Mạ Màu Khổ 300",
-    unit: "MD",
+    unit: "Mét dài",
     unitPrice: 38000,
     category: "phu_kien_ton",
     defaultQty: 3,
+    stockQty: 49,
   },
   {
     id: "noc-ton-300",
+    code: "NOC300",
     name: "Nóc Tôn Dập Mạ Màu Khổ 300",
-    unit: "MD",
+    unit: "Mét dài",
     unitPrice: 38000,
     category: "phu_kien_ton",
     defaultQty: 5,
+    stockQty: 46,
   },
   {
     id: "keo-apollo-a500",
+    code: "KEO-A500",
     name: "Keo Silicone Apollo A500 Trắng Sữa",
-    unit: "LỌ",
+    unit: "Lọ",
     unitPrice: 48000,
     category: "vat_tu_phu",
     defaultQty: 5,
+    stockQty: 150,
   },
   {
     id: "keo-apollo-a300",
+    code: "KEO-A300",
     name: "Keo Apollo A300 Axit Trong Suốt",
-    unit: "LỌ",
+    unit: "Lọ",
     unitPrice: 45000,
     category: "vat_tu_phu",
     defaultQty: 2,
+    stockQty: 80,
   },
   {
     id: "vit-ton-4",
+    code: "VIT-4",
     name: "Vít Bắn Tôn Mạ Kẽm 4 Phân (Túi 200 con)",
-    unit: "TÚI",
+    unit: "Túi",
     unitPrice: 75000,
     category: "vat_tu_phu",
     defaultQty: 4,
+    stockQty: 200,
   },
   {
     id: "vit-ton-5",
+    code: "VIT-5",
     name: "Vít Bắn Tôn Mạ Kẽm 5 Phân (Túi 200 con)",
-    unit: "TÚI",
+    unit: "Túi",
     unitPrice: 85000,
     category: "vat_tu_phu",
     defaultQty: 2,
+    stockQty: 120,
   },
   {
     id: "vit-inox-4",
+    code: "VIT-INOX-4",
     name: "Vít Bắn Tôn Đầu Inox 4 Phân Chống Rỉ",
-    unit: "TÚI",
+    unit: "Túi",
     unitPrice: 110000,
     category: "vat_tu_phu",
     defaultQty: 1,
+    stockQty: 50,
   },
   {
     id: "bit-dau-mang",
+    code: "BIT-MANG",
     name: "Bịt Đầu Máng Nước Inox Dập Sẵn",
-    unit: "CÁI",
+    unit: "Cái",
     unitPrice: 25000,
     category: "phu_kien_ton",
     defaultQty: 2,
+    stockQty: 100,
   },
 ];
 
@@ -376,6 +398,66 @@ export const SHARED_UOM_NAMES = [
 ] as const;
 
 export type SharedUomName = (typeof SHARED_UOM_NAMES)[number];
+
+/**
+ * Chuẩn hóa đơn vị tính từ kho hàng (viết hoa/viết tắt như MD, LO, TUI...) sang danh mục chuẩn SHARED_UOM_NAMES
+ */
+export function normalizeAccessoryUnit(rawUnit: string): string {
+  if (!rawUnit) return "Cây";
+  const trimmed = rawUnit.trim();
+  const upper = trimmed.toUpperCase();
+
+  switch (upper) {
+    case "MD":
+    case "MET DAI":
+    case "MÉT DÀI":
+      return "Mét dài";
+    case "M":
+    case "MET":
+    case "MÉT":
+      return "Mét";
+    case "M2":
+    case "M²":
+      return "m²";
+    case "LO":
+    case "LỌ":
+      return "Lọ";
+    case "TUI":
+    case "TÚI":
+      return "Túi";
+    case "CAY":
+    case "CÂY":
+      return "Cây";
+    case "CAI":
+    case "CÁI":
+      return "Cái";
+    case "KG":
+      return "Kg";
+    case "BO":
+    case "BỘ":
+      return "Bộ";
+    case "CUON":
+    case "CUỘN":
+      return "Cuộn";
+    case "TAM":
+    case "TẤM":
+      return "Tấm";
+    case "HOP":
+    case "HỘP":
+      return "Hộp";
+    case "BAO":
+      return "Bao";
+    case "BINH":
+    case "BÌNH":
+      return "Bình";
+    default: {
+      const matched = SHARED_UOM_NAMES.find(
+        (n) => n.toLowerCase() === trimmed.toLowerCase()
+      );
+      return matched || trimmed;
+    }
+  }
+}
 
 export const UNITS_CATALOG = [
   // Nhóm đơn vị dùng phổ biến cho cả Kho Hàng và Đơn Cắt Tôn

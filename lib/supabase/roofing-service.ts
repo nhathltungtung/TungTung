@@ -1,7 +1,13 @@
 import { createClient } from "./client";
 import { RoofingOrder, RoofingGroup, AccessoryItem, RoofingOrderStatus } from "@/types/roofing";
 import { SAMPLE_EXCEL_ORDER } from "@/lib/roofing-calc";
-import { RoofingProductPreset, ROOFING_PRODUCTS_CATALOG } from "@/lib/catalogs";
+import {
+  RoofingProductPreset,
+  ROOFING_PRODUCTS_CATALOG,
+  AccessoryPreset,
+  ACCESSORIES_CATALOG,
+  normalizeAccessoryUnit,
+} from "@/lib/catalogs";
 
 interface DbCutItem {
   id: string;
@@ -352,6 +358,109 @@ export async function getRoofingProducts(): Promise<RoofingProductPreset[]> {
     return [...dbProducts, ...remainingPresets];
   } catch {
     return ROOFING_PRODUCTS_CATALOG;
+  }
+}
+
+/**
+ * Lấy danh sách phụ kiện và vật tư bán kèm từ kho hàng (bảng public.inventory_items và public.products)
+ * Đồng bộ mã hàng, tồn kho thực tế, ĐVT và đơn giá bán niêm yết
+ */
+export async function getWarehouseAccessories(): Promise<AccessoryPreset[]> {
+  try {
+    const supabase = createClient();
+    const timeoutPromise = new Promise<{ error: Error }>((resolve) =>
+      setTimeout(() => resolve({ error: new Error("Timeout") }), 1500)
+    );
+
+    // 1. Lấy dữ liệu từ bảng inventory_items (kho hàng TT88)
+    const invPromise = supabase
+      .from("inventory_items")
+      .select("id, code, name, category, unit, stock_qty, selling_price")
+      .order("name");
+
+    // 2. Lấy thêm phụ kiện từ bảng products (danh mục sản phẩm)
+    const prodPromise = supabase
+      .from("products")
+      .select("id, code, name, category, unit, stock_quantity, unit_price")
+      .eq("category", "phu_kien")
+      .order("name");
+
+    const [invResult, prodResult] = await Promise.all([
+      Promise.race([invPromise, timeoutPromise]),
+      Promise.race([prodPromise, timeoutPromise]),
+    ]);
+
+    const itemsFromInv = "data" in invResult && invResult.data ? invResult.data : [];
+    const itemsFromProd = "data" in prodResult && prodResult.data ? prodResult.data : [];
+
+    const dbAccessories: AccessoryPreset[] = [];
+    const seenCodes = new Set<string>();
+    const seenNames = new Set<string>();
+
+    // Ưu tiên vật tư từ inventory_items
+    for (const item of itemsFromInv) {
+      const code = item.code?.trim();
+      const name = item.name?.trim();
+      if (!name) continue;
+
+      const codeKey = code ? code.toLowerCase() : "";
+      const nameKey = name.toLowerCase();
+
+      if ((codeKey && seenCodes.has(codeKey)) || seenNames.has(nameKey)) continue;
+      if (codeKey) seenCodes.add(codeKey);
+      seenNames.add(nameKey);
+
+      dbAccessories.push({
+        id: item.id || code || `inv-${Date.now()}`,
+        code: code || undefined,
+        name: name,
+        unit: normalizeAccessoryUnit(item.unit || "Cây"),
+        unitPrice: Number(item.selling_price) || 0,
+        category: item.category || "phu_kien",
+        stockQty: item.stock_qty != null ? Number(item.stock_qty) : undefined,
+        defaultQty: 1,
+      });
+    }
+
+    // Bổ sung từ products nếu chưa có
+    for (const prod of itemsFromProd) {
+      const code = prod.code?.trim();
+      const name = prod.name?.trim();
+      if (!name) continue;
+
+      const codeKey = code ? code.toLowerCase() : "";
+      const nameKey = name.toLowerCase();
+
+      if ((codeKey && seenCodes.has(codeKey)) || seenNames.has(nameKey)) continue;
+      if (codeKey) seenCodes.add(codeKey);
+      seenNames.add(nameKey);
+
+      dbAccessories.push({
+        id: prod.id || code || `prod-${Date.now()}`,
+        code: code || undefined,
+        name: name,
+        unit: normalizeAccessoryUnit(prod.unit || "Cây"),
+        unitPrice: Number(prod.unit_price) || 0,
+        category: "phu_kien",
+        stockQty: prod.stock_quantity != null ? Number(prod.stock_quantity) : undefined,
+        defaultQty: 1,
+      });
+    }
+
+    // Hợp nhất với ACCESSORIES_CATALOG dự phòng
+    for (const preset of ACCESSORIES_CATALOG) {
+      const codeKey = preset.code ? preset.code.toLowerCase() : "";
+      const nameKey = preset.name.toLowerCase();
+      if ((codeKey && seenCodes.has(codeKey)) || seenNames.has(nameKey)) continue;
+      if (codeKey) seenCodes.add(codeKey);
+      seenNames.add(nameKey);
+
+      dbAccessories.push(preset);
+    }
+
+    return dbAccessories.length > 0 ? dbAccessories : ACCESSORIES_CATALOG;
+  } catch {
+    return ACCESSORIES_CATALOG;
   }
 }
 

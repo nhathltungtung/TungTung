@@ -16,14 +16,20 @@ import {
   SAMPLE_EXCEL_ORDER,
 } from "@/lib/roofing-calc";
 import { exportRoofingOrderToExcel } from "@/lib/roofing-excel";
-import { saveRoofingOrder, getRoofingProducts } from "@/lib/supabase/roofing-service";
+import {
+  saveRoofingOrder,
+  getRoofingProducts,
+  getWarehouseAccessories,
+} from "@/lib/supabase/roofing-service";
 import { RoofingInvoicePrint } from "./RoofingInvoicePrint";
 import {
   RoofingProductPreset,
   ROOFING_PRODUCTS_CATALOG,
+  AccessoryPreset,
   ACCESSORIES_CATALOG,
   CUSTOMERS_CATALOG,
   SHARED_UOM_NAMES,
+  normalizeAccessoryUnit,
 } from "@/lib/catalogs";
 import {
   Plus,
@@ -41,6 +47,10 @@ import {
   ChevronDown,
   User,
   Search,
+  Package,
+  Boxes,
+  X,
+  Check,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -107,13 +117,26 @@ export function RoofingOrderForm() {
   const [activeProductDropdownGroupId, setActiveProductDropdownGroupId] = useState<string | null>(null);
 
   // Catalog tôn (khởi tạo từ preset và tự động nạp từ CSDL nếu có)
+  // Catalog tôn (khởi tạo từ preset và tự động nạp từ CSDL nếu có)
   const [productCatalog, setProductCatalog] = useState<RoofingProductPreset[]>(ROOFING_PRODUCTS_CATALOG);
+
+  // Catalog phụ kiện kho hàng (nạp động từ Supabase inventory_items & products)
+  const [warehouseAccessories, setWarehouseAccessories] = useState<AccessoryPreset[]>(ACCESSORIES_CATALOG);
+  const [activeAccessoryDropdownId, setActiveAccessoryDropdownId] = useState<string | null>(null);
+  const [showWarehouseModal, setShowWarehouseModal] = useState(false);
+  const [warehouseSearchQuery, setWarehouseSearchQuery] = useState("");
+  const [warehouseCategoryFilter, setWarehouseCategoryFilter] = useState<string>("all");
 
   useEffect(() => {
     let isMounted = true;
     getRoofingProducts().then((products) => {
       if (isMounted && products && products.length > 0) {
         setProductCatalog(products);
+      }
+    });
+    getWarehouseAccessories().then((accessories) => {
+      if (isMounted && accessories && accessories.length > 0) {
+        setWarehouseAccessories(accessories);
       }
     });
     return () => {
@@ -133,6 +156,9 @@ export function RoofingOrderForm() {
       }
       if (!target.closest("[data-roofing-dropdown]")) {
         setActiveProductDropdownGroupId(null);
+      }
+      if (!target.closest("[data-accessory-dropdown]")) {
+        setActiveAccessoryDropdownId(null);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -358,7 +384,7 @@ export function RoofingOrderForm() {
     const newAcc = calculateAccessory({
       id: `acc-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       name: presetName || "",
-      unit: presetUnit || "Cây",
+      unit: presetUnit ? normalizeAccessoryUnit(presetUnit) : "Cây",
       quantity: 1,
       unitPrice: presetPrice || 0,
     });
@@ -372,6 +398,53 @@ export function RoofingOrderForm() {
         ...totals,
       };
     });
+  };
+
+  // Chọn phụ kiện từ danh mục kho hàng cho dòng cụ thể
+  const handleSelectWarehouseAccessory = (rowId: string, item: AccessoryPreset) => {
+    const normalizedUnit = normalizeAccessoryUnit(item.unit);
+    setOrder((prev) => {
+      const newAccessories = prev.accessories.map((a) => {
+        if (a.id !== rowId) return a;
+        return calculateAccessory({
+          ...a,
+          name: item.name,
+          unit: normalizedUnit,
+          unitPrice: item.unitPrice,
+        });
+      });
+      const totals = calculateOrderTotals(prev.roofingGroups, newAccessories, prev.discount, prev.deposit);
+      return {
+        ...prev,
+        accessories: newAccessories,
+        ...totals,
+      };
+    });
+    setActiveAccessoryDropdownId(null);
+    toast.success(`Đã chọn: ${item.name} (${formatCurrency(item.unitPrice)}/${normalizedUnit})`);
+  };
+
+  // Thêm phụ kiện từ kho hàng trực tiếp vào đơn hàng (từ modal kho hoặc quick chip)
+  const handleAddAccessoryFromWarehouse = (item: AccessoryPreset) => {
+    const normalizedUnit = normalizeAccessoryUnit(item.unit);
+    const newAcc = calculateAccessory({
+      id: `acc-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      name: item.name,
+      unit: normalizedUnit,
+      quantity: item.defaultQty || 1,
+      unitPrice: item.unitPrice,
+    });
+
+    setOrder((prev) => {
+      const newAccessories = [...prev.accessories, newAcc];
+      const totals = calculateOrderTotals(prev.roofingGroups, newAccessories, prev.discount, prev.deposit);
+      return {
+        ...prev,
+        accessories: newAccessories,
+        ...totals,
+      };
+    });
+    toast.success(`Đã thêm từ kho: ${item.name}`);
   };
 
   // 9. Xoá phụ kiện
@@ -1028,17 +1101,30 @@ export function RoofingOrderForm() {
               2. Phụ Kiện Bán Kèm (Sườn, Máng Inox, Úp Nóc, Vít, Keo...)
             </h2>
 
-            {/* Nút thêm nhanh & Catalog phụ kiện */}
+            {/* Nút mở kho hàng & Catalog phụ kiện */}
             <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowWarehouseModal(true)}
+                className="px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                title="Mở danh sách tra cứu toàn bộ phụ kiện trong kho hàng"
+              >
+                <Package className="w-4 h-4" />
+                📦 Chọn Từ Kho Hàng ({warehouseAccessories.length})
+              </button>
+
               <div className="flex flex-wrap gap-1.5">
-                {ACCESSORIES_CATALOG.slice(0, 4).map((acc) => (
+                {warehouseAccessories.slice(0, 4).map((acc) => (
                   <button
-                    key={acc.id}
+                    key={acc.id || acc.code}
                     type="button"
-                    onClick={() => addAccessory(acc.name, acc.unit, acc.unitPrice)}
-                    className="px-2.5 py-1 text-xs bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg font-medium transition-colors cursor-pointer"
+                    onClick={() => handleAddAccessoryFromWarehouse(acc)}
+                    className="px-2.5 py-1 text-xs bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg font-medium transition-colors cursor-pointer flex items-center gap-1"
+                    title={`Mã: ${acc.code || 'N/A'} - Tồn kho: ${acc.stockQty != null ? acc.stockQty : 'Sẵn kho'} ${acc.unit}`}
                   >
-                    + {acc.name} ({formatCurrency(acc.unitPrice)})
+                    <span>+</span>
+                    <span>{acc.name}</span>
+                    <span className="text-[10px] text-emerald-600 font-bold">({formatCurrency(acc.unitPrice)})</span>
                   </button>
                 ))}
                 <button
@@ -1054,7 +1140,7 @@ export function RoofingOrderForm() {
 
           {order.accessories.length === 0 ? (
             <div className="py-8 text-center text-slate-400 text-xs border border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
-              Chưa có phụ kiện nào trong đơn. Bấm vào các nút phụ kiện mẫu phía trên để thêm nhanh.
+              Chưa có phụ kiện nào trong đơn. Bấm nút <strong className="text-blue-600">📦 Chọn Từ Kho Hàng</strong> hoặc các nút gợi ý phía trên để thêm nhanh.
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -1062,7 +1148,7 @@ export function RoofingOrderForm() {
                 <thead>
                   <tr className="bg-slate-100/90 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-700">
                     <th className="py-2.5 px-3 w-12 text-center">STT</th>
-                    <th className="py-2.5 px-3 min-w-[180px]">Tên Phụ Kiện / Vật Tư</th>
+                    <th className="py-2.5 px-3 min-w-[200px]">Tên Phụ Kiện / Vật Tư (Chọn từ kho hoặc gõ)</th>
                     <th className="py-2.5 px-3 w-28 text-right">Chiều Dài (m)</th>
                     <th className="py-2.5 px-3 w-28 text-right">Số Cây/Tấm</th>
                     <th className="py-2.5 px-3 w-32 text-right">Số Lượng Tính</th>
@@ -1077,13 +1163,107 @@ export function RoofingOrderForm() {
                     <tr key={acc.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/20">
                       <td className="py-2 px-3 text-center text-slate-400 font-mono">{idx + 1}</td>
                       <td className="py-2 px-3">
-                        <input
-                          type="text"
-                          placeholder="Tên phụ kiện..."
-                          value={acc.name}
-                          onChange={(e) => updateAccessory(acc.id, "name", e.target.value)}
-                          className="w-full h-9 px-2.5 rounded-lg font-semibold text-xs border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#1a222c] text-slate-900 dark:text-white focus:ring-2 focus:ring-primary"
-                        />
+                        <div className="relative" data-accessory-dropdown>
+                          <div className="flex items-center">
+                            <input
+                              type="text"
+                              placeholder="Gõ mã hoặc tên phụ kiện..."
+                              value={acc.name}
+                              onChange={(e) => {
+                                updateAccessory(acc.id, "name", e.target.value);
+                                setActiveAccessoryDropdownId(acc.id);
+                              }}
+                              onFocus={() => setActiveAccessoryDropdownId(acc.id)}
+                              className="w-full h-9 px-2.5 pr-8 rounded-lg font-semibold text-xs border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#1a222c] text-slate-900 dark:text-white focus:ring-2 focus:ring-primary"
+                            />
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setActiveAccessoryDropdownId(
+                                  activeAccessoryDropdownId === acc.id ? null : acc.id
+                                )
+                              }
+                              className="absolute right-1.5 p-1 text-slate-400 hover:text-primary transition-colors cursor-pointer"
+                              title="Xem danh sách phụ kiện kho"
+                            >
+                              <ChevronDown className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+
+                          {/* Dropdown gợi ý từ kho */}
+                          {activeAccessoryDropdownId === acc.id && (
+                            <div className="absolute top-full left-0 mt-1 w-80 max-h-60 overflow-y-auto bg-white dark:bg-[#1e293b] rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 z-50 divide-y divide-slate-100 dark:divide-slate-800">
+                              {(() => {
+                                const q = (acc.name || "").toLowerCase().trim();
+                                const filtered = warehouseAccessories.filter(
+                                  (item) =>
+                                    !q ||
+                                    item.name.toLowerCase().includes(q) ||
+                                    (item.code && item.code.toLowerCase().includes(q))
+                                );
+
+                                if (filtered.length === 0) {
+                                  return (
+                                    <div className="p-3 text-center text-xs text-slate-400">
+                                      <p>Không có phụ kiện nào khớp &ldquo;{acc.name}&rdquo; trong kho.</p>
+                                      <p className="text-[10px] mt-1 text-slate-500">Bạn có thể tiếp tục gõ tên tự do.</p>
+                                    </div>
+                                  );
+                                }
+
+                                return filtered.map((item) => (
+                                  <div
+                                    key={item.id || item.code}
+                                    onMouseDown={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      handleSelectWarehouseAccessory(acc.id, item);
+                                    }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleSelectWarehouseAccessory(acc.id, item);
+                                    }}
+                                    className="p-2.5 hover:bg-blue-50 dark:hover:bg-blue-950/40 cursor-pointer transition-colors flex justify-between items-center"
+                                  >
+                                    <div className="flex flex-col gap-0.5 min-w-0 pr-2">
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        {item.code && (
+                                          <span className="px-1.5 py-0.5 rounded font-mono text-[10px] font-bold bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 shrink-0">
+                                            {item.code}
+                                          </span>
+                                        )}
+                                        <span className="font-bold text-xs text-slate-900 dark:text-white truncate">
+                                          {item.name}
+                                        </span>
+                                      </div>
+                                      <div className="text-[10px] text-slate-400 flex items-center gap-2">
+                                        <span>ĐVT: {normalizeAccessoryUnit(item.unit)}</span>
+                                        {item.stockQty != null && (
+                                          <span
+                                            className={`font-semibold ${
+                                              item.stockQty > 10
+                                                ? "text-emerald-600"
+                                                : item.stockQty > 0
+                                                ? "text-amber-600"
+                                                : "text-rose-600"
+                                            }`}
+                                          >
+                                            Tồn: {item.stockQty} {normalizeAccessoryUnit(item.unit)}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div className="text-right shrink-0">
+                                      <span className="text-xs font-mono font-bold text-emerald-600">
+                                        {formatCurrency(item.unitPrice)}
+                                      </span>
+                                    </div>
+                                  </div>
+                                ));
+                              })()}
+                            </div>
+                          )}
+                        </div>
                       </td>
                       <td className="py-2 px-3 text-right">
                         <input
@@ -1269,6 +1449,220 @@ export function RoofingOrderForm() {
                 <div className="shadow-lg rounded bg-white">
                   <RoofingInvoicePrint order={order} />
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL TRA CỨU & CHỌN PHỤ KIỆN TỪ KHO HÀNG */}
+        {showWarehouseModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+            <div className="bg-white dark:bg-[#1e293b] w-full max-w-3xl rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-150">
+              {/* Header */}
+              <div className="p-4 bg-slate-100 dark:bg-slate-800 flex justify-between items-center border-b border-slate-200 dark:border-slate-700">
+                <div className="flex items-center gap-2">
+                  <Package className="w-5 h-5 text-primary" />
+                  <div>
+                    <h3 className="font-bold text-slate-900 dark:text-white text-sm sm:text-base">
+                      📦 Danh Sách Phụ Kiện & Vật Tư Từ Kho Hàng
+                    </h3>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Chọn nhanh phụ kiện để đưa vào đơn hàng cắt tôn (Tự động điền giá bán & ĐVT)
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowWarehouseModal(false)}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Toolbar tìm kiếm & lọc */}
+              <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Tìm theo mã hàng (MANG300, VIT...), tên phụ kiện..."
+                    value={warehouseSearchQuery}
+                    onChange={(e) => setWarehouseSearchQuery(e.target.value)}
+                    className="w-full h-9 pl-9 pr-4 rounded-lg text-xs border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#1a222c] text-slate-900 dark:text-white focus:ring-2 focus:ring-primary"
+                    autoFocus
+                  />
+                  {warehouseSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setWarehouseSearchQuery("")}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setWarehouseCategoryFilter("all")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                      warehouseCategoryFilter === "all"
+                        ? "bg-primary text-white"
+                        : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200"
+                    }`}
+                  >
+                    Tất cả
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setWarehouseCategoryFilter("phu_kien")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                      warehouseCategoryFilter === "phu_kien"
+                        ? "bg-primary text-white"
+                        : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200"
+                    }`}
+                  >
+                    Phụ kiện tôn
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setWarehouseCategoryFilter("vat_tu_phu")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                      warehouseCategoryFilter === "vat_tu_phu"
+                        ? "bg-primary text-white"
+                        : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200"
+                    }`}
+                  >
+                    Keo & Vít
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setWarehouseCategoryFilter("vat_tu_khac")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                      warehouseCategoryFilter === "vat_tu_khac"
+                        ? "bg-primary text-white"
+                        : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200"
+                    }`}
+                  >
+                    Vật tư khác
+                  </button>
+                </div>
+              </div>
+
+              {/* Bảng danh sách vật tư kho */}
+              <div className="flex-1 overflow-y-auto p-4">
+                {(() => {
+                  const filtered = warehouseAccessories.filter((item) => {
+                    const matchesQuery =
+                      !warehouseSearchQuery ||
+                      item.name.toLowerCase().includes(warehouseSearchQuery.toLowerCase()) ||
+                      (item.code && item.code.toLowerCase().includes(warehouseSearchQuery.toLowerCase()));
+
+                    const matchesCategory =
+                      warehouseCategoryFilter === "all" ||
+                      (warehouseCategoryFilter === "phu_kien" &&
+                        (item.category === "phu_kien" || item.category === "phu_kien_ton")) ||
+                      (warehouseCategoryFilter === "vat_tu_phu" && item.category === "vat_tu_phu") ||
+                      (warehouseCategoryFilter === "vat_tu_khac" && item.category === "vat_tu_khac");
+
+                    return matchesQuery && matchesCategory;
+                  });
+
+                  if (filtered.length === 0) {
+                    return (
+                      <div className="py-12 text-center text-slate-400 text-xs">
+                        Không tìm thấy phụ kiện / vật tư nào phù hợp với điều kiện tìm kiếm.
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-700">
+                            <th className="py-2.5 px-3 w-12 text-center">STT</th>
+                            <th className="py-2.5 px-3 w-28">Mã Hàng</th>
+                            <th className="py-2.5 px-3 min-w-[200px]">Tên Phụ Kiện / Vật Tư</th>
+                            <th className="py-2.5 px-3 w-20 text-center">ĐVT</th>
+                            <th className="py-2.5 px-3 w-28 text-right">Tồn Kho</th>
+                            <th className="py-2.5 px-3 w-32 text-right">Giá Bán</th>
+                            <th className="py-2.5 px-3 w-28 text-center">Thao Tác</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                          {filtered.map((item, idx) => (
+                            <tr
+                              key={item.id || item.code}
+                              className="hover:bg-blue-50/50 dark:hover:bg-blue-950/20 transition-colors"
+                            >
+                              <td className="py-2.5 px-3 text-center text-slate-400 font-mono">
+                                {idx + 1}
+                              </td>
+                              <td className="py-2.5 px-3 font-mono font-bold text-blue-700 dark:text-blue-400">
+                                {item.code || "---"}
+                              </td>
+                              <td className="py-2.5 px-3 font-semibold text-slate-900 dark:text-white">
+                                {item.name}
+                              </td>
+                              <td className="py-2.5 px-3 text-center">
+                                <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[11px] font-semibold">
+                                  {normalizeAccessoryUnit(item.unit)}
+                                </span>
+                              </td>
+                              <td className="py-2.5 px-3 text-right">
+                                {item.stockQty != null ? (
+                                  <span
+                                    className={`px-2 py-0.5 rounded text-[11px] font-bold font-mono ${
+                                      item.stockQty > 10
+                                        ? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400"
+                                        : item.stockQty > 0
+                                        ? "bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400"
+                                        : "bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400"
+                                    }`}
+                                  >
+                                    {formatNumber(item.stockQty, 0)} {normalizeAccessoryUnit(item.unit)}
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-400 italic text-[11px]">Sẵn kho</span>
+                                )}
+                              </td>
+                              <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900 dark:text-white">
+                                {formatCurrency(item.unitPrice)}
+                              </td>
+                              <td className="py-2.5 px-3 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => handleAddAccessoryFromWarehouse(item)}
+                                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors shadow-xs flex items-center gap-1 mx-auto cursor-pointer"
+                                >
+                                  <Plus className="w-3.5 h-3.5" />
+                                  + Thêm
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Footer */}
+              <div className="p-4 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center">
+                <span className="text-xs text-slate-500 dark:text-slate-400">
+                  Tổng cộng: <strong>{warehouseAccessories.length}</strong> mặt hàng trong danh mục kho
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowWarehouseModal(false)}
+                  className="px-4 py-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                >
+                  Xong & Đóng
+                </button>
               </div>
             </div>
           </div>
