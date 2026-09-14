@@ -12,14 +12,16 @@ import {
 interface DataTablePaginationProps<TData> {
   table: Table<TData>;
   pageSizeOptions?: number[];
+  totalRows?: number;
 }
 
 export function DataTablePagination<TData>({
   table,
   pageSizeOptions = [5, 10, 20, 50],
+  totalRows,
 }: DataTablePaginationProps<TData>) {
   const selectedCount = table.getFilteredSelectedRowModel().rows.length;
-  const totalCount = table.getFilteredRowModel().rows.length;
+  const totalCount = totalRows !== undefined ? totalRows : table.getFilteredRowModel().rows.length;
   const pageIndex = table.getState().pagination.pageIndex;
   const pageCount = table.getPageCount();
 
@@ -29,11 +31,23 @@ export function DataTablePagination<TData>({
       <div className="flex items-center gap-2">
         {selectedCount > 0 ? (
           <span className="font-medium text-slate-700 dark:text-slate-200 bg-blue-500/10 text-blue-600 dark:text-blue-400 px-2.5 py-1 rounded-lg">
-            Đã chọn {selectedCount} trên {totalCount} bản ghi
+            Đã chọn {selectedCount.toLocaleString("vi-VN")} / {totalCount.toLocaleString("vi-VN")} bản ghi
           </span>
         ) : (
-          <span>
-            Tổng cộng: <strong className="text-slate-800 dark:text-white">{totalCount}</strong> bản ghi
+          <span className="tabular-nums">
+            Hiển thị{" "}
+            <strong className="text-slate-800 dark:text-white">
+              {totalCount === 0
+                ? 0
+                : (pageIndex * table.getState().pagination.pageSize + 1).toLocaleString("vi-VN")}
+            </strong>
+            {" "}–{" "}
+            <strong className="text-slate-800 dark:text-white">
+              {Math.min((pageIndex + 1) * table.getState().pagination.pageSize, totalCount).toLocaleString("vi-VN")}
+            </strong>
+            {" "}trong{" "}
+            <strong className="text-slate-800 dark:text-white">{totalCount.toLocaleString("vi-VN")}</strong>
+            {" "}kết quả
           </span>
         )}
       </div>

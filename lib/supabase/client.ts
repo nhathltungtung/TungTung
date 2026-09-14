@@ -16,6 +16,12 @@ export function createClient() {
 
   return createBrowserClient(
     supabaseUrl || "https://placeholder.supabase.co",
-    supabaseAnonKey || "placeholder-anon-key"
+    supabaseAnonKey || "placeholder-anon-key",
+    {
+      auth: {
+        autoRefreshToken: false, // Tránh retry vô tận làm đơ trình duyệt khi chưa bật Docker
+        persistSession: true,
+      },
+    }
   );
 }

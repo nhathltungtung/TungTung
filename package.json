@@ -1,4 +1,4 @@
-﻿{
+{
   "name": "tungtung",
   "version": "0.1.0",
   "private": true,
@@ -7,11 +7,15 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "db:start": "docker compose -f ./supabase-docker/docker-compose.yml up -d",
-    "db:stop": "docker compose -f ./supabase-docker/docker-compose.yml down",
-    "db:status": "docker compose -f ./supabase-docker/docker-compose.yml ps",
-    "db:logs": "docker compose -f ./supabase-docker/docker-compose.yml logs -f",
-    "db:reset": "docker compose -f ./supabase-docker/docker-compose.yml down -v && docker compose -f ./supabase-docker/docker-compose.yml up -d"
+    "test": "vitest run",
+    "test:features": "node scripts/verify-all-features.mjs",
+    "doctor": "node scripts/verify-all-features.mjs",
+    "generate:crud": "node scripts/generate-crud.mjs",
+    "db:start": "docker compose -f ./supabase-docker/docker-compose.yml -f ./supabase-docker/docker-compose.override.yml up -d",
+    "db:stop": "docker compose -f ./supabase-docker/docker-compose.yml -f ./supabase-docker/docker-compose.override.yml down",
+    "db:status": "docker compose -f ./supabase-docker/docker-compose.yml -f ./supabase-docker/docker-compose.override.yml ps",
+    "db:logs": "docker compose -f ./supabase-docker/docker-compose.yml -f ./supabase-docker/docker-compose.override.yml logs -f",
+    "db:reset": "docker compose -f ./supabase-docker/docker-compose.yml -f ./supabase-docker/docker-compose.override.yml down -v && docker compose -f ./supabase-docker/docker-compose.yml -f ./supabase-docker/docker-compose.override.yml up -d"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
@@ -31,13 +35,13 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
+    "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.3.4",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^5.0.0"
   }
 }
-

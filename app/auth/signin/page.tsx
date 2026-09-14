@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Lock, Mail, ArrowRight, Eye, EyeOff, AlertCircle, CheckCircle2, ShieldCheck } from "lucide-react";
+import { Lock, Mail, ArrowRight, Eye, EyeOff, AlertCircle, CheckCircle2, ShieldCheck, Sparkles } from "lucide-react";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { LanguageToggle } from "@/components/i18n/LanguageToggle";
 import { useTranslation } from "@/components/i18n/LanguageProvider";
@@ -188,10 +188,45 @@ export default function SignInPage() {
                 </>
               )}
             </button>
+
+            {/* Nút Đăng nhập Demo 1-Chạm */}
+            <div className="relative my-4">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-slate-200 dark:border-slate-700"></div>
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-white dark:bg-[#1c2434] px-2 text-slate-400">hoặc</span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                document.cookie = "demo_session=true; path=/; max-age=86400";
+                setSuccessMessage("Đăng nhập thành công với quyền Quản Trị Viên!");
+                setTimeout(() => {
+                  const params = new URLSearchParams(window.location.search);
+                  const nextUrl = params.get("next") || "/admin";
+                  router.push(nextUrl);
+                  router.refresh();
+                }, 400);
+              }}
+              className="w-full inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-950/60 text-amber-900 dark:text-amber-200 text-xs font-bold border border-amber-200 dark:border-amber-800 transition-all cursor-pointer"
+            >
+              <Sparkles className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+              <span>Đăng Nhập Nhanh 1-Chạm (Chế Độ Demo)</span>
+            </button>
+
+            {/* Hộp gợi ý tài khoản */}
+            <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#24303f] border border-slate-200 dark:border-slate-700 text-xs space-y-1 text-slate-600 dark:text-slate-300">
+              <p className="font-semibold text-slate-800 dark:text-white">Tài khoản quản trị mặc định:</p>
+              <p className="font-mono">Email: <span className="font-bold text-blue-600 dark:text-blue-400">admin@tailadmin.dev</span></p>
+              <p className="font-mono">Mật khẩu: <span className="font-bold text-blue-600 dark:text-blue-400">admin123456</span></p>
+            </div>
           </form>
 
           {/* Footer inside card */}
-          <div className="mt-6 pt-6 border-t border-slate-100 dark:border-[#2e3a47] text-center">
+          <div className="mt-5 pt-4 border-t border-slate-100 dark:border-[#2e3a47] text-center">
             <p className="text-xs text-slate-500 dark:text-slate-400">
               {t.auth.noAccount}{" "}
               <Link

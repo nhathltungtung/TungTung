@@ -43,3 +43,8 @@ next-env.d.ts
 
 # supabase local db runtime data
 supabase-docker/volumes/db/data/
+
+# test artifacts
+test.xlsx
+tests/*.xlsx
+

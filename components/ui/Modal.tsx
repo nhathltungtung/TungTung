@@ -12,6 +12,7 @@ export interface ModalProps {
   children: React.ReactNode;
   footer?: React.ReactNode;
   maxWidth?: "sm" | "md" | "lg" | "xl" | "2xl";
+  size?: "sm" | "md" | "lg" | "xl" | "2xl";
   className?: string;
 }
 
@@ -30,9 +31,11 @@ export function Modal({
   description,
   children,
   footer,
-  maxWidth = "md",
+  maxWidth,
+  size = "md",
   className,
 }: ModalProps) {
+  const finalWidth = maxWidth || size;
   // Handle ESC key press
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -74,7 +77,7 @@ export function Modal({
         aria-modal="true"
         className={cn(
           "relative w-full bg-white dark:bg-[#1c2434] rounded-2xl border border-slate-200 dark:border-[#2e3a47] shadow-2xl p-6 z-10 transition-all transform animate-in fade-in zoom-in-95 duration-200",
-          maxWidthMap[maxWidth],
+          maxWidthMap[finalWidth],
           className
         )}
       >

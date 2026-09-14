@@ -34,3 +34,24 @@ INSERT INTO auth.users (
     now(),
     now()
 ) ON CONFLICT (id) DO NOTHING;
+
+-- Seed Danh mục Khách hàng mẫu
+INSERT INTO public.customers (id, name, phone, address, note)
+VALUES 
+    ('c1111111-1111-1111-1111-111111111111', 'Anh Việt (Khách thầu)', '0988 123 456', 'Trương Xá, Nghĩa Dân, Hưng Yên', 'Thợ thầu công trình quen'),
+    ('c2222222-2222-2222-2222-222222222222', 'Bác Hùng (Xây nhà)', '0912 345 678', 'Nghĩa Dân, Kim Động, Hưng Yên', 'Khách làm mái nhà 2 tầng')
+ON CONFLICT (id) DO NOTHING;
+
+-- Seed Danh mục Sản phẩm & Phụ kiện mẫu từ file hoá đơn
+INSERT INTO public.products (code, name, category, unit, default_width, unit_price, stock_quantity)
+VALUES
+    ('TON-OLYMPIC-04', 'Tôn 0,4 Xanh Rêu Olympic 1 lớp 11 sóng', 'ton_lop', 'm2', 1.08, 111000, 2500),
+    ('TON-DONGA-045', 'Tôn 0,45 Xanh Dương Đông Á 11 sóng', 'ton_lop', 'm2', 1.08, 115000, 1800),
+    ('TON-HOASEN-04', 'Tôn 0,4 Đỏ Đậm Hoa Sen 11 sóng', 'ton_lop', 'm2', 1.08, 112000, 1200),
+    ('SUON-300', 'Sườn 300', 'phu_kien', 'md', 0, 38000, 450),
+    ('MANG-400-INOX', 'Máng 400 Inox 304', 'phu_kien', 'kg', 0, 82000, 300),
+    ('KEO-A500', 'Keo A500', 'phu_kien', 'lo', 0, 48000, 150),
+    ('VIT-4', 'Vít 4', 'phu_kien', 'tui', 0, 75000, 200)
+ON CONFLICT (code) DO UPDATE 
+SET unit_price = EXCLUDED.unit_price,
+    stock_quantity = EXCLUDED.stock_quantity;
