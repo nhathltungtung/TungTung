@@ -33,6 +33,7 @@ interface CustomerFormModalProps {
   customer: CustomerData | null;
   onClose: () => void;
   onModeChange?: (newMode: "create" | "edit" | "view") => void;
+  onSuccess?: (savedCustomer: CustomerData) => void;
 }
 
 export function CustomerFormModal({
@@ -41,6 +42,7 @@ export function CustomerFormModal({
   customer,
   onClose,
   onModeChange,
+  onSuccess,
 }: CustomerFormModalProps) {
   const [isPending, startTransition] = useTransition();
   const isView = mode === "view";
@@ -94,6 +96,9 @@ export function CustomerFormModal({
             return;
           }
           toast.success("Cập nhật thông tin khách thầu thành công!");
+          if (res.data) {
+            onSuccess?.(res.data as CustomerData);
+          }
         } else {
           const res = await createCustomerAction(values);
           if (!res.success) {
@@ -101,6 +106,9 @@ export function CustomerFormModal({
             return;
           }
           toast.success(`Đã thêm khách thầu "${values.name}" thành công!`);
+          if (res.data) {
+            onSuccess?.(res.data as CustomerData);
+          }
         }
         onClose();
       } catch {

@@ -302,7 +302,7 @@ export async function getRoofingOrders(): Promise<RoofingOrder[]> {
 }
 
 /**
- * Tải danh mục sản phẩm từ CSDL
+ * Tải danh mục sản phẩm tôn từ CSDL và kết hợp với Catalog chuẩn
  */
 export async function getRoofingProducts(): Promise<RoofingProductPreset[]> {
   try {
@@ -311,7 +311,45 @@ export async function getRoofingProducts(): Promise<RoofingProductPreset[]> {
     if (error || !data || data.length === 0) {
       return ROOFING_PRODUCTS_CATALOG;
     }
-    return data as unknown as RoofingProductPreset[];
+
+    const dbProducts: RoofingProductPreset[] = data.map((p) => {
+      const brand = p.name.includes("Olympic")
+        ? "Olympic"
+        : p.name.includes("Hoa Sen")
+        ? "Hoa Sen"
+        : p.name.includes("Đông Á")
+        ? "Đông Á"
+        : p.name.includes("Việt Nhật")
+        ? "Việt Nhật"
+        : "Khác";
+
+      const type = p.name.includes("Xốp")
+        ? "Xốp chống nóng"
+        : p.name.includes("Ngói")
+        ? "Sóng ngói"
+        : p.name.includes("6 sóng")
+        ? "6 sóng CN"
+        : "1 lớp";
+
+      return {
+        id: p.id || p.code,
+        code: p.code || p.id,
+        name: p.name,
+        brand: brand as any,
+        type: type as any,
+        thickness: "0.40mm",
+        width: Number(p.default_width) || 1.08,
+        unitPrice: Number(p.unit_price) || 110000,
+      };
+    });
+
+    // Hợp nhất sản phẩm DB và Catalog cố định, loại bỏ trùng code/name
+    const codeSet = new Set(dbProducts.map((p) => p.code.toLowerCase()));
+    const remainingPresets = ROOFING_PRODUCTS_CATALOG.filter(
+      (p) => !codeSet.has(p.code.toLowerCase())
+    );
+
+    return [...dbProducts, ...remainingPresets];
   } catch {
     return ROOFING_PRODUCTS_CATALOG;
   }

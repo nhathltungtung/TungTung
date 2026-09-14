@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/ui/table/DataTable";
 import { DataTableColumnHeader } from "@/components/ui/table/DataTableColumnHeader";
@@ -22,6 +23,13 @@ interface CustomerTableClientProps {
 export function CustomerTableClient({
   initialCustomers,
 }: CustomerTableClientProps) {
+  const router = useRouter();
+  const [customers, setCustomers] = useState<CustomerData[]>(initialCustomers);
+
+  useEffect(() => {
+    setCustomers(initialCustomers);
+  }, [initialCustomers]);
+
   const [modalState, setModalState] = useState<{
     isOpen: boolean;
     mode: "create" | "edit" | "view";
@@ -44,16 +52,19 @@ export function CustomerTableClient({
   const handleDelete = async () => {
     if (!deleteDialog.customer) return;
     setIsDeleting(true);
+    const target = deleteDialog.customer;
     try {
       const res = await deleteCustomerAction(
-        deleteDialog.customer.id,
-        deleteDialog.customer.name
+        target.id,
+        target.name
       );
       if (!res.success) {
         toast.error(res.error || "Lỗi khi xoá khách thầu.");
         return;
       }
-      toast.success(`Đã xoá khách thầu "${deleteDialog.customer.name}" thành công!`);
+      setCustomers((prev) => prev.filter((c) => c.id !== target.id));
+      router.refresh();
+      toast.success(`Đã xoá khách thầu "${target.name}" thành công!`);
       setDeleteDialog({ isOpen: false, customer: null });
     } catch {
       toast.error("Có lỗi xảy ra khi xoá.");
@@ -214,7 +225,7 @@ export function CustomerTableClient({
       <div className="bg-white dark:bg-[#24303f] p-4 rounded-xl shadow-xs border border-slate-200 dark:border-slate-800">
         <DataTable
           columns={columns}
-          data={initialCustomers}
+          data={customers}
           searchKey="name"
           searchPlaceholder="Tìm kiếm theo tên khách thầu hoặc số điện thoại..."
         />
@@ -231,6 +242,18 @@ export function CustomerTableClient({
         onModeChange={(newMode) =>
           setModalState((prev) => ({ ...prev, mode: newMode }))
         }
+        onSuccess={(saved) => {
+          setCustomers((prev) => {
+            const index = prev.findIndex((c) => c.id === saved.id);
+            if (index >= 0) {
+              const updated = [...prev];
+              updated[index] = saved;
+              return updated;
+            }
+            return [saved, ...prev];
+          });
+          router.refresh();
+        }}
       />
 
       {/* Confirm Delete Dialog */}

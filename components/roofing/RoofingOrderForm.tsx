@@ -16,9 +16,10 @@ import {
   SAMPLE_EXCEL_ORDER,
 } from "@/lib/roofing-calc";
 import { exportRoofingOrderToExcel } from "@/lib/roofing-excel";
-import { saveRoofingOrder } from "@/lib/supabase/roofing-service";
+import { saveRoofingOrder, getRoofingProducts } from "@/lib/supabase/roofing-service";
 import { RoofingInvoicePrint } from "./RoofingInvoicePrint";
 import {
+  RoofingProductPreset,
   ROOFING_PRODUCTS_CATALOG,
   ACCESSORIES_CATALOG,
   CUSTOMERS_CATALOG,
@@ -105,6 +106,21 @@ export function RoofingOrderForm() {
   const [customerSearchQuery, setCustomerSearchQuery] = useState("");
   const [activeProductDropdownGroupId, setActiveProductDropdownGroupId] = useState<string | null>(null);
 
+  // Catalog tôn (khởi tạo từ preset và tự động nạp từ CSDL nếu có)
+  const [productCatalog, setProductCatalog] = useState<RoofingProductPreset[]>(ROOFING_PRODUCTS_CATALOG);
+
+  useEffect(() => {
+    let isMounted = true;
+    getRoofingProducts().then((products) => {
+      if (isMounted && products && products.length > 0) {
+        setProductCatalog(products);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const customerBoxRef = useRef<HTMLDivElement>(null);
   const lengthInputRefs = useRef<{ [key: string]: HTMLInputElement | null }>({});
 
@@ -187,7 +203,7 @@ export function RoofingOrderForm() {
   };
 
   // Chọn loại tôn từ catalog (Cập nhật đồng thời tên, khổ, giá và tự động tính toán lại diện tích & thành tiền)
-  const handleSelectRoofingProduct = (groupId: string, product: (typeof ROOFING_PRODUCTS_CATALOG)[0]) => {
+  const handleSelectRoofingProduct = (groupId: string, product: RoofingProductPreset) => {
     setOrder((prev) => {
       const newGroups = prev.roofingGroups.map((g) => {
         if (g.id !== groupId) return g;
@@ -726,7 +742,7 @@ export function RoofingOrderForm() {
                   <div className="relative">
                     <input
                       type="text"
-                      placeholder="Gõ tên loại tôn (VD: Tôn Đông Á 11 sóng 0.45mm)..."
+                      placeholder="Gõ mã hoặc tên loại tôn (VD: TON-OLYMPIC-04, Đông Á, 0.45)..."
                       value={group.productName}
                       onFocus={() => setActiveProductDropdownGroupId(group.id)}
                       onChange={(e) => {
@@ -755,16 +771,33 @@ export function RoofingOrderForm() {
                       className="absolute left-0 top-full mt-1 w-full bg-white dark:bg-[#1c2434] border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-30 max-h-56 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800"
                     >
                       {(() => {
-                        const filtered = ROOFING_PRODUCTS_CATALOG.filter(
-                          (p) =>
-                            !group.productName ||
-                            p.name.toLowerCase().includes(group.productName.toLowerCase()) ||
-                            p.brand.toLowerCase().includes(group.productName.toLowerCase())
-                        );
-                        const list = filtered.length > 0 ? filtered : ROOFING_PRODUCTS_CATALOG;
-                        return list.map((p) => (
+                        const term = (group.productName || "").trim().toLowerCase();
+                        const filtered = productCatalog.filter((p) => {
+                          if (!term) return true;
+                          return (
+                            (p.code && p.code.toLowerCase().includes(term)) ||
+                            (p.name && p.name.toLowerCase().includes(term)) ||
+                            (p.brand && p.brand.toLowerCase().includes(term)) ||
+                            (p.type && p.type.toLowerCase().includes(term)) ||
+                            (p.thickness && p.thickness.toLowerCase().includes(term)) ||
+                            (p.id && p.id.toLowerCase().includes(term))
+                          );
+                        });
+
+                        if (filtered.length === 0) {
+                          return (
+                            <div className="p-3 text-xs text-slate-400 text-center">
+                              Không tìm thấy loại tôn phù hợp với &ldquo;{group.productName}&rdquo;.
+                              <div className="mt-1 text-[11px] text-slate-500">
+                                Bạn có thể giữ nguyên tên này để nhập tự do, hoặc thử tìm theo mã/hãng khác.
+                              </div>
+                            </div>
+                          );
+                        }
+
+                        return filtered.map((p) => (
                           <div
-                            key={p.id}
+                            key={p.id || p.code}
                             onMouseDown={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
@@ -776,13 +809,18 @@ export function RoofingOrderForm() {
                             }}
                             className="p-2.5 hover:bg-blue-50 dark:hover:bg-blue-950/40 cursor-pointer transition-colors flex justify-between items-center"
                           >
-                            <div>
+                            <div className="flex items-center gap-2">
+                              {p.code && (
+                                <span className="px-1.5 py-0.5 rounded font-mono text-[10px] font-bold bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 shrink-0">
+                                  {p.code}
+                                </span>
+                              )}
                               <span className="font-bold text-xs text-slate-900 dark:text-white">{p.name}</span>
-                              <span className="ml-2 text-[10px] text-blue-600 dark:text-blue-400 font-semibold">
+                              <span className="text-[10px] text-slate-500 dark:text-slate-400">
                                 ({p.brand})
                               </span>
                             </div>
-                            <div className="text-right">
+                            <div className="text-right shrink-0 ml-2">
                               <span className="text-xs font-mono font-bold text-emerald-600">
                                 {formatCurrency(p.unitPrice)}/m²
                               </span>

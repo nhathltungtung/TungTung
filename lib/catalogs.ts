@@ -5,6 +5,7 @@
 
 export interface RoofingProductPreset {
   id: string;
+  code: string; // Mã loại tôn (VD: TON-OLYMPIC-04, TON-DONGA-045, ...)
   name: string;
   brand: "Olympic" | "Hoa Sen" | "Đông Á" | "Việt Nhật" | "Khác";
   type: "1 lớp" | "Xốp chống nóng" | "Sóng ngói" | "6 sóng CN";
@@ -39,6 +40,13 @@ export interface SupplierPreset {
   category: "Tôn cuộn" | "Thép hộp" | "Nhôm định hình" | "Vật tư kim khí";
 }
 
+export interface UnitOfMeasurePreset {
+  id: string;
+  name: string;
+  code: string;
+  description: string;
+}
+
 export interface CategoryPreset {
   id: string;
   name: string;
@@ -49,6 +57,7 @@ export interface CategoryPreset {
 export const ROOFING_PRODUCTS_CATALOG: RoofingProductPreset[] = [
   {
     id: "ton-olympic-04-xanh-reu",
+    code: "TON-OLYMPIC-04",
     name: "Tôn 0.40 Xanh Rêu Olympic 1 lớp 11 sóng",
     brand: "Olympic",
     type: "1 lớp",
@@ -58,6 +67,7 @@ export const ROOFING_PRODUCTS_CATALOG: RoofingProductPreset[] = [
   },
   {
     id: "ton-olympic-04-do-dam",
+    code: "TON-OLYMPIC-04-DD",
     name: "Tôn 0.40 Đỏ Đậm Olympic 1 lớp 11 sóng",
     brand: "Olympic",
     type: "1 lớp",
@@ -67,6 +77,7 @@ export const ROOFING_PRODUCTS_CATALOG: RoofingProductPreset[] = [
   },
   {
     id: "ton-olympic-045-xanh-reu",
+    code: "TON-OLYMPIC-045",
     name: "Tôn 0.45 Xanh Rêu Olympic 1 lớp 11 sóng",
     brand: "Olympic",
     type: "1 lớp",
@@ -76,6 +87,7 @@ export const ROOFING_PRODUCTS_CATALOG: RoofingProductPreset[] = [
   },
   {
     id: "ton-olympic-04-xop",
+    code: "TON-OLYMPIC-XOP-04",
     name: "Tôn Xốp Cách Nhiệt Olympic 0.40mm 11 sóng",
     brand: "Olympic",
     type: "Xốp chống nóng",
@@ -85,6 +97,7 @@ export const ROOFING_PRODUCTS_CATALOG: RoofingProductPreset[] = [
   },
   {
     id: "ton-olympic-045-xop",
+    code: "TON-OLYMPIC-XOP-045",
     name: "Tôn Xốp Cách Nhiệt Olympic 0.45mm 11 sóng",
     brand: "Olympic",
     type: "Xốp chống nóng",
@@ -94,6 +107,7 @@ export const ROOFING_PRODUCTS_CATALOG: RoofingProductPreset[] = [
   },
   {
     id: "ton-hoasen-04-xanh-duong",
+    code: "TON-HOASEN-04",
     name: "Tôn 0.40 Xanh Dương Hoa Sen 1 lớp 11 sóng",
     brand: "Hoa Sen",
     type: "1 lớp",
@@ -103,6 +117,7 @@ export const ROOFING_PRODUCTS_CATALOG: RoofingProductPreset[] = [
   },
   {
     id: "ton-hoasen-045-xop",
+    code: "TON-HOASEN-XOP-045",
     name: "Tôn Xốp Hoa Sen 0.45mm PU chống nóng",
     brand: "Hoa Sen",
     type: "Xốp chống nóng",
@@ -112,6 +127,7 @@ export const ROOFING_PRODUCTS_CATALOG: RoofingProductPreset[] = [
   },
   {
     id: "ton-donga-045-ghi-xam",
+    code: "TON-DONGA-045",
     name: "Tôn Đông Á 0.45mm Ghi Xám 6 sóng công nghiệp",
     brand: "Đông Á",
     type: "6 sóng CN",
@@ -121,6 +137,7 @@ export const ROOFING_PRODUCTS_CATALOG: RoofingProductPreset[] = [
   },
   {
     id: "ton-olympic-song-ngoi-do",
+    code: "TON-OLYMPIC-NGOI",
     name: "Tôn Giả Ngói Olympic Ruby Đỏ Đậm 0.45mm",
     brand: "Olympic",
     type: "Sóng ngói",
@@ -130,6 +147,7 @@ export const ROOFING_PRODUCTS_CATALOG: RoofingProductPreset[] = [
   },
   {
     id: "ton-vietnhat-035",
+    code: "TON-VIETNHAT-035",
     name: "Tôn Lạnh Mạ Màu Việt Nhật 0.35mm 11 sóng",
     brand: "Việt Nhật",
     type: "1 lớp",

@@ -21,12 +21,12 @@ export default async function CustomersPage() {
       .select("*")
       .order("created_at", { ascending: false });
 
-    if (!error && data && data.length > 0) {
+    if (!error && data) {
       customers = data;
     } else {
-      // Fallback danh bạ mẫu
+      // Chỉ fallback danh bạ mẫu khi lỗi kết nối CSDL, sử dụng UUID hợp lệ
       customers = CUSTOMERS_CATALOG.map((c, idx) => ({
-        id: `c-${idx}`,
+        id: `c1111111-1111-1111-1111-${String(idx + 1).padStart(12, "0")}`,
         name: c.name,
         phone: c.phone,
         address: c.address,
