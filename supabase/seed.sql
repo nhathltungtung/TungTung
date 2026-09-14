@@ -19,7 +19,14 @@ INSERT INTO auth.users (
     raw_app_meta_data,
     raw_user_meta_data,
     created_at,
-    updated_at
+    updated_at,
+    confirmation_token,
+    recovery_token,
+    email_change_token_new,
+    email_change,
+    phone_change,
+    phone_change_token,
+    reauthentication_token
 ) VALUES (
     '00000000-0000-0000-0000-000000000000',
     'a1111111-1111-1111-1111-111111111111',
@@ -32,8 +39,23 @@ INSERT INTO auth.users (
     '{"provider":"email","providers":["email"]}',
     '{"full_name":"TailAdmin Master","role":"admin"}',
     now(),
-    now()
-) ON CONFLICT (id) DO NOTHING;
+    now(),
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    ''
+) ON CONFLICT (id) DO UPDATE
+SET 
+  confirmation_token = COALESCE(auth.users.confirmation_token, ''),
+  recovery_token = COALESCE(auth.users.recovery_token, ''),
+  email_change_token_new = COALESCE(auth.users.email_change_token_new, ''),
+  email_change = COALESCE(auth.users.email_change, ''),
+  phone_change = COALESCE(auth.users.phone_change, ''),
+  phone_change_token = COALESCE(auth.users.phone_change_token, ''),
+  reauthentication_token = COALESCE(auth.users.reauthentication_token, '');
 
 -- Seed Danh mục Khách hàng mẫu
 INSERT INTO public.customers (id, name, phone, address, note)
