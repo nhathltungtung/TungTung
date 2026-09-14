@@ -14,7 +14,7 @@ INSERT INTO auth.users (
     role,
     email,
     encrypted_password,
-    confirmed_at,
+    email_confirmed_at,
     last_sign_in_at,
     raw_app_meta_data,
     raw_user_meta_data,
