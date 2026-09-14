@@ -95,16 +95,49 @@ export function createBlankRoofingOrder(isDynamic = false): RoofingOrder {
   return { ...blankOrder, ...totals };
 }
 
-export function RoofingOrderForm() {
+/** Khởi tạo state form: create = đơn trắng; edit = giữ nguyên id/orderCode của đơn có sẵn */
+export function initRoofingOrderState(
+  mode: "create" | "edit" = "create",
+  initialOrder?: RoofingOrder
+): RoofingOrder {
+  if (mode === "edit" && initialOrder) {
+    return {
+      ...initialOrder,
+      customer: { ...initialOrder.customer },
+      roofingGroups: initialOrder.roofingGroups.map((g) => ({
+        ...g,
+        items: g.items.map((it) => ({ ...it })),
+      })),
+      accessories: initialOrder.accessories.map((a) => ({ ...a })),
+    };
+  }
+  return createBlankRoofingOrder(false);
+}
+
+export type RoofingOrderFormMode = "create" | "edit";
+
+interface RoofingOrderFormProps {
+  mode?: RoofingOrderFormMode;
+  initialOrder?: RoofingOrder;
+}
+
+export function RoofingOrderForm({
+  mode = "create",
+  initialOrder,
+}: RoofingOrderFormProps = {}) {
   const router = useRouter();
+  const isEdit = mode === "edit" && !!initialOrder;
   // Trạng thái đơn hàng: Khởi tạo giá trị deterministic để tránh Hydration Mismatch giữa SSR và Client
-  const [order, setOrder] = useState<RoofingOrder>(() => createBlankRoofingOrder(false));
+  const [order, setOrder] = useState<RoofingOrder>(() =>
+    initRoofingOrderState(isEdit ? "edit" : "create", initialOrder)
+  );
 
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Sinh mã đơn ngẫu nhiên và lấy ngày thực tế của máy người dùng sau khi Hydrate thành công
+  // Sinh mã đơn ngẫu nhiên và lấy ngày thực tế của máy người dùng sau khi Hydrate thành công (chỉ khi tạo mới)
   useEffect(() => {
+    if (isEdit) return;
     const today = new Date().toISOString().split("T")[0];
     const randomNum = Math.floor(100 + Math.random() * 900);
     setOrder((prev) => ({
@@ -113,7 +146,7 @@ export function RoofingOrderForm() {
       orderCode: `HĐ-${new Date().getFullYear()}-${randomNum}`,
       createdAt: today,
     }));
-  }, []);
+  }, [isEdit]);
 
   // Trạng thái hiển thị dropdown gợi ý khách hàng & tôn
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
@@ -493,11 +526,11 @@ export function RoofingOrderForm() {
     toast.success("Đã làm mới form tạo đơn (Trang trắng sạch sẽ)!");
   };
 
-  // Xuất file Excel
-  const handleExportExcel = () => {
+  // Xuất file Excel đúng form mẫu "hoá đơn tôn bản chính.xlsx"
+  const handleExportExcel = async () => {
     try {
-      exportRoofingOrderToExcel(order, `Hoa_Don_${order.orderCode || "Ton"}.xlsx`);
-      toast.success("Đã xuất file Excel thành công!");
+      await exportRoofingOrderToExcel(order, `Hoa_Don_${order.orderCode || "Ton"}.xlsx`);
+      toast.success("Đã xuất file Excel đúng mẫu hoá đơn tôn bản chính!");
     } catch (err) {
       console.error(err);
       toast.error("Lỗi khi xuất file Excel");
@@ -512,7 +545,12 @@ export function RoofingOrderForm() {
       const res = await saveRoofingOrderAction(order);
       if (res.success) {
         saveToLocalStorage(order);
-        toast.success(res.message || `Đã lưu đơn hàng ${order.orderCode} thành công!`);
+        toast.success(
+          res.message ||
+            (isEdit
+              ? `Đã cập nhật đơn hàng ${order.orderCode} thành công!`
+              : `Đã lưu đơn hàng ${order.orderCode} thành công!`)
+        );
         router.push("/admin/orders");
         router.refresh();
         return;
@@ -554,35 +592,42 @@ export function RoofingOrderForm() {
           <div>
             <h1 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
               <Calculator className="w-6 h-6 text-primary" />
-              Tạo Đơn Hàng & Bàn Tính Cắt Tôn
+              {isEdit
+                ? `Sửa Đơn Hàng: ${order.orderCode}`
+                : "Tạo Đơn Hàng & Bàn Tính Cắt Tôn"}
             </h1>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Quy chuẩn theo mẫu file hoá đơn đại lý tôn, hỗ trợ gõ phím nhanh và tự động tính diện tích m²
+              {isEdit
+                ? "Chỉnh sửa quy cách cắt tôn, phụ kiện, khách hàng và thanh toán — mã đơn được giữ nguyên"
+                : "Quy chuẩn theo mẫu file hoá đơn đại lý tôn, hỗ trợ gõ phím nhanh và tự động tính diện tích m²"}
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {/* Nút Làm Mới (Trang Trắng) */}
-            <button
-              type="button"
-              onClick={handleReset}
-              className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg transition-colors cursor-pointer"
-              title="Xóa sạch dữ liệu để tạo đơn mới từ đầu"
-            >
-              <RotateCcw className="w-4 h-4" />
-              Làm Mới (Trang Trắng)
-            </button>
+            {/* Nút Làm Mới / Nạp Mẫu — chỉ khi tạo mới */}
+            {!isEdit && (
+              <>
+                <button
+                  type="button"
+                  onClick={handleReset}
+                  className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg transition-colors cursor-pointer"
+                  title="Xóa sạch dữ liệu để tạo đơn mới từ đầu"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  Làm Mới (Trang Trắng)
+                </button>
 
-            {/* Nút Nạp Mẫu File Excel */}
-            <button
-              type="button"
-              onClick={handleLoadSample}
-              className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-blue-700 dark:text-blue-400 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/60 rounded-lg transition-colors cursor-pointer"
-              title="Nạp dữ liệu mẫu 11 dòng cắt tôn của Anh Việt"
-            >
-              <Sparkles className="w-4 h-4 text-blue-600" />
-              Nạp Mẫu File Excel
-            </button>
+                <button
+                  type="button"
+                  onClick={handleLoadSample}
+                  className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-blue-700 dark:text-blue-400 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/60 rounded-lg transition-colors cursor-pointer"
+                  title="Nạp dữ liệu mẫu 11 dòng cắt tôn của Anh Việt"
+                >
+                  <Sparkles className="w-4 h-4 text-blue-600" />
+                  Nạp Mẫu File Excel
+                </button>
+              </>
+            )}
 
             {/* Nút Xuất Excel */}
             <button
@@ -604,7 +649,7 @@ export function RoofingOrderForm() {
               Xem Trước & In Phiếu
             </button>
 
-            {/* Nút Lưu Đơn Hàng */}
+            {/* Nút Lưu / Cập nhật Đơn Hàng */}
             <button
               type="button"
               onClick={handleSaveOrder}
@@ -612,7 +657,11 @@ export function RoofingOrderForm() {
               className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-[#3c50e0] hover:bg-[#3344bd] rounded-lg shadow-xs transition-colors disabled:opacity-50 cursor-pointer"
             >
               {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-              {isSaving ? "Đang Lưu..." : "Lưu Đơn Hàng"}
+              {isSaving
+                ? "Đang Lưu..."
+                : isEdit
+                  ? "Cập Nhật Đơn Hàng"
+                  : "Lưu Đơn Hàng"}
             </button>
           </div>
         </div>
@@ -642,8 +691,11 @@ export function RoofingOrderForm() {
                 suppressHydrationWarning
                 type="text"
                 value={order.orderCode}
+                readOnly={isEdit}
+                disabled={isEdit}
                 onChange={(e) => setOrder((prev) => ({ ...prev, orderCode: e.target.value }))}
-                className="w-full h-10 px-3 text-sm font-mono font-bold rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-[#1a222c] text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-primary"
+                title={isEdit ? "Mã đơn được khóa khi sửa để tránh tạo đơn trùng" : undefined}
+                className="w-full h-10 px-3 text-sm font-mono font-bold rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-[#1a222c] text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-primary disabled:opacity-70 disabled:cursor-not-allowed"
               />
             </div>
 

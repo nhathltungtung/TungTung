@@ -26,6 +26,7 @@ import {
   Clock,
   CheckCircle,
   XCircle,
+  Pencil,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -98,9 +99,9 @@ export function OrderTableClient({ initialOrders }: OrderTableClientProps) {
     }, 600);
   };
 
-  const handleExportExcel = (order: RoofingOrder) => {
+  const handleExportExcel = async (order: RoofingOrder) => {
     try {
-      exportRoofingOrderToExcel(order, `Hoa_Don_${order.orderCode}.xlsx`);
+      await exportRoofingOrderToExcel(order, `Hoa_Don_${order.orderCode}.xlsx`);
       toast.success(`Đã xuất file Excel đơn ${order.orderCode}!`);
     } catch {
       toast.error("Lỗi khi xuất file Excel.");
@@ -285,6 +286,17 @@ export function OrderTableClient({ initialOrders }: OrderTableClientProps) {
           const order = row.original;
           return (
             <div className="flex items-center justify-end gap-1">
+              {/* Nút Sửa đơn (ẩn với đơn đã huỷ) */}
+              {order.status !== "cancelled" && (
+                <Link
+                  href={`/admin/orders/${order.id}/edit`}
+                  title="Sửa Đơn Hàng"
+                  className="inline-flex p-1.5 text-slate-500 hover:text-primary rounded-md transition-colors"
+                >
+                  <Pencil className="w-4 h-4" />
+                </Link>
+              )}
+
               {/* Nút Xem & In Hoá Đơn */}
               <Button
                 variant="ghost"

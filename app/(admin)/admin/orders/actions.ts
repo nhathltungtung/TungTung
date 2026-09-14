@@ -5,6 +5,79 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "@/lib/audit";
 import { RoofingOrder } from "@/types/roofing";
+import { mapDbOrderToRoofingOrder } from "@/lib/roofing-order-mapper";
+
+const ROOFING_ORDER_SELECT = `
+  id,
+  order_code,
+  order_date,
+  customer_name,
+  customer_phone,
+  customer_address,
+  total_amount,
+  discount,
+  deposit,
+  remaining_amount,
+  status,
+  note,
+  roofing_order_groups (
+    id,
+    product_name,
+    width,
+    unit_price,
+    total_pieces,
+    total_meters,
+    total_square_meters,
+    subtotal,
+    sort_order,
+    roofing_order_cut_items (
+      id,
+      length,
+      quantity,
+      total_meters,
+      sort_order
+    )
+  ),
+  roofing_order_accessories (
+    id,
+    name,
+    length,
+    pieces,
+    unit,
+    quantity,
+    unit_price,
+    subtotal,
+    sort_order
+  )
+`;
+
+/**
+ * Server Action: Lấy 1 đơn cắt tôn theo id (dùng cho trang sửa)
+ */
+export async function getRoofingOrderByIdAction(
+  id: string
+): Promise<RoofingOrder | null> {
+  try {
+    let supabase: any;
+    try {
+      supabase = createAdminClient();
+    } catch {
+      supabase = await createClient();
+    }
+
+    const { data, error } = await supabase
+      .from("roofing_orders")
+      .select(ROOFING_ORDER_SELECT)
+      .eq("id", id)
+      .maybeSingle();
+
+    if (error || !data) return null;
+    return mapDbOrderToRoofingOrder(data);
+  } catch (err) {
+    console.error("Lỗi getRoofingOrderByIdAction:", err);
+    return null;
+  }
+}
 
 /**
  * Server Action: Lưu / Cập nhật Đơn Hàng Cắt Tôn vào Supabase

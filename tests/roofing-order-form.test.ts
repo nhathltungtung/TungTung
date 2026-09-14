@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   createBlankRoofingOrder,
+  initRoofingOrderState,
   ACCESSORY_UNITS,
 } from "@/components/roofing/RoofingOrderForm";
 import {
@@ -17,7 +18,7 @@ import {
   ACCESSORIES_CATALOG,
   CUSTOMERS_CATALOG,
 } from "@/lib/catalogs";
-import { exportRoofingOrderToExcel } from "@/lib/roofing-excel";
+import { exportRoofingOrderToExcel, buildRoofingExcelDataRows, toExcelThousand } from "@/lib/roofing-excel";
 import { RoofingOrder, RoofingCutItem, AccessoryItem } from "@/types/roofing";
 
 describe("Tạo Đơn Hàng & Bàn Tính Cắt Tôn - Toàn Bộ Chức Năng & Nghiệp Vụ", () => {
@@ -67,6 +68,32 @@ describe("Tạo Đơn Hàng & Bàn Tính Cắt Tôn - Toàn Bộ Chức Năng & 
       expect(order1.orderCode).toMatch(/^HĐ-2026-\d{3}$/);
       expect(order2.orderCode).toMatch(/^HĐ-2026-\d{3}$/);
       expect(order1.id).not.toBe(order2.id);
+    });
+
+    it("initRoofingOrderState(edit) giữ nguyên id và orderCode của đơn có sẵn", () => {
+      const existing = {
+        ...SAMPLE_EXCEL_ORDER,
+        id: "uuid-order-abc-123",
+        orderCode: "HĐ-2026-777",
+        status: "cutting" as const,
+      };
+
+      const state = initRoofingOrderState("edit", existing);
+
+      expect(state.id).toBe("uuid-order-abc-123");
+      expect(state.orderCode).toBe("HĐ-2026-777");
+      expect(state.status).toBe("cutting");
+      expect(state.customer.name).toBe(existing.customer.name);
+      expect(state.roofingGroups).toHaveLength(existing.roofingGroups.length);
+      // Deep clone: sửa bản sao không làm đổi đơn gốc
+      state.customer.name = "Đã sửa";
+      expect(existing.customer.name).not.toBe("Đã sửa");
+    });
+
+    it("initRoofingOrderState(create) trả về đơn trắng deterministic", () => {
+      const state = initRoofingOrderState("create");
+      expect(state.orderCode).toBe("HĐ-2026-001");
+      expect(state.status).toBe("pending");
     });
   });
 
@@ -461,10 +488,67 @@ describe("Tạo Đơn Hàng & Bàn Tính Cắt Tôn - Toàn Bộ Chức Năng & 
   // 8. XUẤT EXCEL & MẪU IN HOÁ ĐƠN
   // ===========================================================================
   describe("8. Chức Năng Xuất Excel & Mẫu In Hoá Đơn Chuẩn Khổ A4", () => {
-    it("Hàm exportRoofingOrderToExcel tạo dữ liệu hợp lệ không bị văng lỗi", () => {
-      expect(() => {
-        exportRoofingOrderToExcel(SAMPLE_EXCEL_ORDER, "test.xlsx");
-      }).not.toThrow();
+    it("buildRoofingExcelDataRows khớp layout mẫu hoá đơn tôn bản chính.xlsx", () => {
+      const rows = buildRoofingExcelDataRows(SAMPLE_EXCEL_ORDER);
+      const cuts = rows.filter((r) => r.kind === "cut");
+      const groupTotal = rows.find((r) => r.kind === "group_total");
+      const accessories = rows.filter((r) => r.kind === "accessory");
+      const grand = rows.find((r) => r.kind === "grand_total");
+      const sep = rows.find((r) => r.kind === "separator");
+
+      expect(cuts).toHaveLength(11);
+      expect(cuts[0].name).toContain("Olympic");
+      expect(cuts[0].mergeNameRows).toBe(11);
+      expect(cuts[0].length).toBe(2.96);
+      expect(cuts[10].length).toBe(4.5);
+
+      expect(groupTotal?.name).toBe("Tổng loại");
+      expect(groupTotal?.pieces).toBe(11);
+      expect(groupTotal?.meters).toBe(40.13);
+      expect(groupTotal?.widthOrUnit).toBe(1.08);
+      expect(Number(Number(groupTotal?.squareMeters).toFixed(4))).toBe(43.3404);
+      expect(groupTotal?.unitPrice).toBe(111);
+      expect(Number(Number(groupTotal?.subtotal).toFixed(3))).toBe(4810.784);
+
+      expect(accessories).toHaveLength(4);
+      expect(accessories[0].name).toBe("Sườn 300");
+      expect(accessories[0].unitPrice).toBe(38);
+      expect(accessories[0].subtotal).toBe(114);
+      expect(accessories[0].mergeUnitCols).toBe(true);
+
+      expect(accessories[1].name).toContain("Máng");
+      expect(accessories[1].meters).toBe(14.83);
+      expect(accessories[1].unitPrice).toBe(82);
+
+      expect(accessories[2].name).toBe("Keo A500");
+      expect(accessories[2].meters).toBe(5);
+      expect(accessories[2].widthOrUnit).toBe("Lọ");
+
+      expect(sep?.subtotal).toBe("------------------------");
+      expect(Number(Number(grand?.subtotal).toFixed(3))).toBe(6680.844);
+      expect(toExcelThousand(111000)).toBe(111);
+    });
+
+    it("Hàm exportRoofingOrderToExcel tạo file từ template không bị văng lỗi", async () => {
+      const out = "tmp-hoa-don-export-test.xlsx";
+      await expect(
+        exportRoofingOrderToExcel(SAMPLE_EXCEL_ORDER, out)
+      ).resolves.not.toThrow();
+
+      const ExcelJS = (await import("exceljs")).default;
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.readFile(out);
+      const ws = wb.worksheets[0];
+      expect(ws.getCell("A10").value).toBe("STT");
+      expect(String(ws.getCell("B11").value)).toContain("Olympic");
+      expect(ws.getCell("C11").value).toBe(2.96);
+      expect(Number(ws.getCell("H22").value)).toBe(111);
+      expect(Number(Number(ws.getCell("I22").value).toFixed(3))).toBe(4810.784);
+      expect(Number(Number(ws.getCell("I28").value).toFixed(3))).toBe(6680.844);
+      expect(wb.model.media?.length).toBeGreaterThanOrEqual(2);
+
+      const fs = await import("fs/promises");
+      await fs.unlink(out);
     });
 
     it("Dữ liệu đơn hàng có đầy đủ thông tin để render mẫu in A4 RoofingInvoicePrint", () => {
