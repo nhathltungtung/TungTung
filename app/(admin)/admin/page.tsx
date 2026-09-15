@@ -1,8 +1,8 @@
 import React from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { getRoofingOrders } from "@/lib/supabase/roofing-service";
-import { formatCurrency, formatNumber, SAMPLE_EXCEL_ORDER } from "@/lib/roofing-calc";
+import { getRoofingOrdersServer } from "@/lib/supabase/roofing-service.server";
+import { formatCurrency, formatNumber } from "@/lib/roofing-calc";
 import {
   Calculator,
   Boxes,
@@ -32,44 +32,50 @@ export const metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function AdminDashboardPage() {
-  let orders: any[] = [];
-  let totalStockValue = 319200000;
-  let totalStockItems = 60;
-  let outOfStockCount = 8;
-  let cashBalance = 25000000;
-  let totalCustomers = 6;
+  let orders: Awaited<ReturnType<typeof getRoofingOrdersServer>> = [];
+  let totalStockValue = 0;
+  let totalStockItems = 0;
+  let outOfStockCount = 0;
+  let cashBalance = 0;
+  let totalCustomers = 0;
 
   try {
     const supabase = await createClient();
 
     // 1. Đơn hàng
-    const fetchedOrders = await getRoofingOrders();
-    if (fetchedOrders && fetchedOrders.length > 0) {
-      orders = fetchedOrders;
-    } else {
-      orders = [SAMPLE_EXCEL_ORDER];
-    }
+    orders = await getRoofingOrdersServer();
 
     // 2. Thống kê kho hàng
     const { data: invData } = await supabase.from("inventory_items").select("*");
     if (invData && invData.length > 0) {
       totalStockItems = invData.length;
       totalStockValue = invData.reduce(
-        (sum: number, i: any) => sum + (Number(i.stock_value) || 0),
+        (sum: number, i: { stock_value?: number | null }) =>
+          sum + (Number(i.stock_value) || 0),
         0
       );
-      outOfStockCount = invData.filter((i: any) => (Number(i.stock_qty) || 0) <= 0).length;
+      outOfStockCount = invData.filter(
+        (i: { stock_qty?: number | null }) => (Number(i.stock_qty) || 0) <= 0
+      ).length;
     }
 
     // 3. Sổ quỹ tiền mặt
     const { data: txData } = await supabase.from("cash_transactions").select("*");
     if (txData && txData.length > 0) {
       const receipts = txData
-        .filter((t: any) => t.type === "receipt")
-        .reduce((sum: number, t: any) => sum + (Number(t.amount) || 0), 0);
+        .filter((t: { type?: string }) => t.type === "receipt")
+        .reduce(
+          (sum: number, t: { amount?: number | null }) =>
+            sum + (Number(t.amount) || 0),
+          0
+        );
       const payments = txData
-        .filter((t: any) => t.type === "payment")
-        .reduce((sum: number, t: any) => sum + (Number(t.amount) || 0), 0);
+        .filter((t: { type?: string }) => t.type === "payment")
+        .reduce(
+          (sum: number, t: { amount?: number | null }) =>
+            sum + (Number(t.amount) || 0),
+          0
+        );
       cashBalance = receipts - payments;
     }
 
@@ -81,7 +87,7 @@ export default async function AdminDashboardPage() {
       totalCustomers = count;
     }
   } catch (err) {
-    console.error("Lỗi khi tải dữ liệu dashboard:", err);
+    console.error("Lỗi tải dashboard:", err);
   }
 
   const totalRevenue = orders.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
@@ -160,7 +166,7 @@ export default async function AdminDashboardPage() {
             {formatCurrency(totalStockValue)}
           </div>
           <p className="text-[11px] text-slate-400 mt-1">
-            {totalStockItems} mã hàng (thay 54qr.xlsx)
+            {totalStockItems} mã hàng trong kho
           </p>
         </div>
 

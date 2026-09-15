@@ -1,7 +1,7 @@
 import type ExcelJS from "exceljs";
 import { RoofingOrder } from "@/types/roofing";
 
-/** Đơn giá / thành tiền trên file mẫu lưu theo nghìn đồng (111 = 111.000đ) */
+/** Giữ helper cũ (một số test/util vẫn dùng tỷ lệ nghìn đồng) */
 export function toExcelThousand(vnd: number): number {
   return Number((Number(vnd) / 1000).toFixed(6));
 }
@@ -18,16 +18,16 @@ export interface RoofingExcelDataRow {
   squareMeters: RoofingExcelCell;
   unitPrice: RoofingExcelCell;
   subtotal: RoofingExcelCell;
-  kind: "cut" | "group_total" | "accessory" | "separator" | "grand_total";
+  kind: "cut" | "group_total" | "accessory";
   /** Merge cột Tên hàng (B) cho các dòng cắt cùng nhóm */
   mergeNameRows?: number;
-  /** Merge cột Khổ/ĐVT F:G như phụ kiện trong mẫu */
+  /** Merge cột Khổ/ĐVT F:G như phụ kiện */
   mergeUnitCols?: boolean;
 }
 
 /**
- * Dựng các dòng dữ liệu khớp layout file mẫu "hoá đơn tôn bản chính.xlsx"
- * (bắt đầu từ dòng 11, sau hàng tiêu đề cột).
+ * Dựng các dòng dữ liệu khớp layout mẫu "phieu_thanh_toan_mau.xlsx"
+ * (bắt đầu từ dòng 11). Đơn giá / thành tiền theo đồng đầy đủ.
  */
 export function buildRoofingExcelDataRows(order: RoofingOrder): RoofingExcelDataRow[] {
   const rows: RoofingExcelDataRow[] = [];
@@ -66,8 +66,8 @@ export function buildRoofingExcelDataRows(order: RoofingOrder): RoofingExcelData
       meters: Number(group.totalMeters) || 0,
       widthOrUnit: Number(group.width) || 0,
       squareMeters: Number(group.totalSquareMeters) || 0,
-      unitPrice: toExcelThousand(group.unitPrice),
-      subtotal: toExcelThousand(group.subtotal),
+      unitPrice: Number(group.unitPrice) || 0,
+      subtotal: Number(group.subtotal) || 0,
       kind: "group_total",
     });
   }
@@ -85,52 +85,44 @@ export function buildRoofingExcelDataRows(order: RoofingOrder): RoofingExcelData
       meters: Number(acc.quantity) || 0,
       widthOrUnit: acc.unit || "",
       squareMeters: null,
-      unitPrice: toExcelThousand(acc.unitPrice),
-      subtotal: toExcelThousand(acc.subtotal),
+      unitPrice: Number(acc.unitPrice) || 0,
+      subtotal: Number(acc.subtotal) || 0,
       kind: "accessory",
       mergeUnitCols: true,
     });
   }
 
-  rows.push({
-    stt: 0,
-    name: "",
-    length: null,
-    pieces: null,
-    meters: null,
-    widthOrUnit: null,
-    squareMeters: null,
-    unitPrice: null,
-    subtotal: "------------------------",
-    kind: "separator",
-  });
-
-  rows.push({
-    stt: 0,
-    name: "",
-    length: null,
-    pieces: null,
-    meters: null,
-    widthOrUnit: null,
-    squareMeters: null,
-    unitPrice: null,
-    subtotal: toExcelThousand(order.totalAmount),
-    kind: "grand_total",
-  });
-
   return rows;
 }
 
-const TEMPLATE_PUBLIC_PATH = "/templates/hoa-don-ton-ban-chinh.xlsx";
-const TEMPLATE_FS_PATH = "public/templates/hoa-don-ton-ban-chinh.xlsx";
-const DATA_START_ROW = 11; // Dòng đầu tiên sau tiêu đề cột (dòng 10)
-const FOOTER_LABEL_ROW = 43; // "Tổng đơn hàng" trong mẫu
+const TEMPLATE_PUBLIC_PATH = "/templates/phieu-thanh-toan.xlsx";
+const TEMPLATE_FS_PATH = "public/templates/phieu-thanh-toan.xlsx";
+const DATA_START_ROW = 11;
+const FOOTER_LABEL_ROW = 43; // "Tổng đơn hàng"
+const MAX_COLS = 9;
+
+function formatInvoiceDate(isoDate?: string): string {
+  const d = isoDate ? new Date(isoDate) : new Date();
+  const day = Number.isNaN(d.getTime()) ? new Date().getDate() : d.getDate();
+  const month = Number.isNaN(d.getTime()) ? new Date().getMonth() + 1 : d.getMonth() + 1;
+  const year = Number.isNaN(d.getTime()) ? new Date().getFullYear() : d.getFullYear();
+  return `Ngày  ${day}   tháng  ${month} năm ${year}`;
+}
+
+function formatCustomerLine(order: RoofingOrder): string {
+  const name = order.customer?.name?.trim() || "";
+  const address = order.customer?.address?.trim() || "";
+  const phone = order.customer?.phone?.trim() || "";
+  const parts = [name, address, phone].filter(Boolean);
+  const detail = parts.length > 0 ? parts.join(" - ") : ". . . . . . . . . . . . . . . . . . . . . . . . . . .";
+  return `Khách hàng, địa chỉ: ${detail}`;
+}
 
 async function loadTemplateBuffer(): Promise<ArrayBuffer> {
   if (typeof window !== "undefined") {
     const res = await fetch(TEMPLATE_PUBLIC_PATH);
     if (!res.ok) {
-      throw new Error("Không tải được mẫu Excel hoá đơn tôn bản chính.");
+      throw new Error("Không tải được mẫu Excel phiếu thanh toán.");
     }
     return res.arrayBuffer();
   }
@@ -164,8 +156,8 @@ function setNumber(
 }
 
 /**
- * Xuất đơn hàng ra .xlsx đúng form mẫu "hoá đơn tôn bản chính.xlsx"
- * (giữ header ảnh đại lý, cột, merge, định dạng số nghìn đồng).
+ * Xuất đơn hàng ra .xlsx đúng form mẫu "phieu_thanh_toan_mau.xlsx"
+ * (header đại lý chữ, ngày, khách hàng, bảng hàng, tổng I43, chữ ký).
  */
 export async function exportRoofingOrderToExcel(
   order: RoofingOrder,
@@ -180,7 +172,11 @@ export async function exportRoofingOrderToExcel(
     throw new Error("Mẫu Excel không có sheet dữ liệu.");
   }
 
-  // Gỡ merge động của vùng dữ liệu mẫu (giữ A1:I9 header và footer A43+)
+  // Ngày + khách hàng
+  worksheet.getCell("F6").value = formatInvoiceDate(order.createdAt);
+  worksheet.getCell("A8").value = formatCustomerLine(order);
+
+  // Gỡ merge động vùng data (giữ header + footer A43+)
   const mergesToRemove = [...(worksheet.model.merges || [])].filter((m) => {
     const startRow = parseInt(m.replace(/^[A-Z]+/, "").split(":")[0], 10);
     return startRow >= DATA_START_ROW && startRow < FOOTER_LABEL_ROW;
@@ -193,10 +189,10 @@ export async function exportRoofingOrderToExcel(
     }
   }
 
-  // Xóa nội dung vùng dữ liệu trước footer
+  // Xóa nội dung + công thức mẫu vùng data
   for (let r = DATA_START_ROW; r < FOOTER_LABEL_ROW; r++) {
     const row = worksheet.getRow(r);
-    for (let c = 1; c <= 9; c++) {
+    for (let c = 1; c <= MAX_COLS; c++) {
       clearCell(row.getCell(c));
     }
     row.commit();
@@ -205,10 +201,15 @@ export async function exportRoofingOrderToExcel(
   const dataRows = buildRoofingExcelDataRows(order);
   const neededEndRow = DATA_START_ROW + dataRows.length - 1;
 
-  // Nếu dữ liệu dài hơn khoảng trống trước footer → chèn thêm dòng
+  let totalLabelRow = FOOTER_LABEL_ROW;
   if (neededEndRow >= FOOTER_LABEL_ROW) {
     const insertCount = neededEndRow - FOOTER_LABEL_ROW + 3;
-    worksheet.spliceRows(FOOTER_LABEL_ROW, 0, ...Array.from({ length: insertCount }, () => []));
+    worksheet.spliceRows(
+      FOOTER_LABEL_ROW,
+      0,
+      ...Array.from({ length: insertCount }, () => [])
+    );
+    totalLabelRow = FOOTER_LABEL_ROW + insertCount;
   }
 
   const pendingNameMerges: Array<{ start: number; end: number }> = [];
@@ -218,29 +219,10 @@ export async function exportRoofingOrderToExcel(
     const rowNumber = DATA_START_ROW + index;
     const row = worksheet.getRow(rowNumber);
 
-    if (data.kind === "separator") {
-      setNumber(row.getCell(9), data.subtotal);
-      row.commit();
-      return;
-    }
-
-    if (data.kind === "grand_total") {
-      setNumber(row.getCell(9), data.subtotal, "#,##0.000");
-      row.getCell(9).fill = {
-        type: "pattern",
-        pattern: "solid",
-        fgColor: { argb: "FFFFFF00" },
-      };
-      row.getCell(9).font = { bold: true };
-      row.commit();
-      return;
-    }
-
     if (data.stt > 0) {
       row.getCell(1).value = data.stt;
     }
 
-    // Chỉ ghi tên khi có nội dung — tránh ghi null vào vùng merge làm mất giá trị master
     if (data.name) {
       row.getCell(2).value = data.name;
     }
@@ -255,7 +237,7 @@ export async function exportRoofingOrderToExcel(
       setNumber(row.getCell(6), data.widthOrUnit, "#,##0.00");
       setNumber(row.getCell(7), data.squareMeters, "#,##0.000");
       setNumber(row.getCell(8), data.unitPrice, "#,##0");
-      setNumber(row.getCell(9), data.subtotal, "#,##0.000");
+      setNumber(row.getCell(9), data.subtotal, "#,##0");
     } else if (data.kind === "accessory") {
       setNumber(row.getCell(3), data.length, "#,##0.00");
       setNumber(row.getCell(4), data.pieces, "#,##0");
@@ -266,7 +248,7 @@ export async function exportRoofingOrderToExcel(
         row.getCell(6).value = data.widthOrUnit;
       }
       setNumber(row.getCell(8), data.unitPrice, "#,##0");
-      setNumber(row.getCell(9), data.subtotal, "#,##0.000");
+      setNumber(row.getCell(9), data.subtotal, "#,##0");
     }
 
     row.commit();
@@ -282,7 +264,6 @@ export async function exportRoofingOrderToExcel(
     }
   });
 
-  // Merge sau khi ghi xong toàn bộ dòng — tránh bị ghi đè null làm mất tên hàng
   for (const m of pendingNameMerges) {
     worksheet.mergeCells(m.start, 2, m.end, 2);
   }
@@ -290,7 +271,14 @@ export async function exportRoofingOrderToExcel(
     worksheet.mergeCells(r, 6, r, 7);
   }
 
-  const exportName = fileName || `Hoa_Don_${order.orderCode || "Ton"}.xlsx`;
+  // Tổng đơn hàng ở cột Thành tiền (I) của dòng footer
+  const totalCell = worksheet.getCell(totalLabelRow, 9);
+  totalCell.value = Number(order.totalAmount) || 0;
+  totalCell.numFmt = "#,##0";
+  totalCell.font = { ...(totalCell.font || {}), bold: true };
+
+  const exportName =
+    fileName || `Phieu_Thanh_Toan_${order.orderCode || "Ton"}.xlsx`;
   const outBuffer = await workbook.xlsx.writeBuffer();
 
   if (typeof window !== "undefined") {

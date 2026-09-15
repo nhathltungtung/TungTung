@@ -189,10 +189,9 @@ describe("Phụ Kiện Bán Kèm - Danh Mục Kho Hàng & Tự Động Điền D
   // 5. HÀM DỊCH VỤ getWarehouseAccessories()
   // ===========================================================================
   describe("5. Dịch vụ nạp phụ kiện từ kho (getWarehouseAccessories)", () => {
-    it("Trả về danh sách phụ kiện hợp nhất không rỗng", async () => {
+    it("Trả về danh sách phụ kiện từ CSDL (mảng, có thể rỗng nếu kho trống)", async () => {
       const list = await getWarehouseAccessories();
       expect(Array.isArray(list)).toBe(true);
-      expect(list.length).toBeGreaterThanOrEqual(ACCESSORIES_CATALOG.length);
 
       // Đảm bảo không bị trùng lặp mã code
       const codes = list.map((item) => item.code?.toLowerCase()).filter(Boolean);

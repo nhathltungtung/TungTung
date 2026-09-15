@@ -1,7 +1,7 @@
 import React from "react";
-import { getRoofingOrders } from "@/lib/supabase/roofing-service";
+import { getRoofingOrdersServer } from "@/lib/supabase/roofing-service.server";
 import { OrderTableClient } from "@/components/admin/orders/OrderTableClient";
-import { SAMPLE_EXCEL_ORDER } from "@/lib/roofing-calc";
+import type { RoofingOrder } from "@/types/roofing";
 
 export const metadata = {
   title: "Danh Sách Đơn Cắt Tôn | Đại Lý Tôn Thép Tuấn Hương",
@@ -11,16 +11,13 @@ export const metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function OrdersListPage() {
-  let orders = [];
+  let orders: RoofingOrder[] = [];
 
   try {
-    orders = await getRoofingOrders();
-    if (!orders || orders.length === 0) {
-      orders = [SAMPLE_EXCEL_ORDER];
-    }
+    orders = await getRoofingOrdersServer();
   } catch (err) {
     console.error("Lỗi khi tải đơn hàng:", err);
-    orders = [SAMPLE_EXCEL_ORDER];
+    orders = [];
   }
 
   return <OrderTableClient initialOrders={orders} />;

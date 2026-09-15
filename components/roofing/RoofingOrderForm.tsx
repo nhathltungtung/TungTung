@@ -13,7 +13,6 @@ import {
   formatCurrency,
   formatNumber,
   numberToVietnameseWords,
-  SAMPLE_EXCEL_ORDER,
 } from "@/lib/roofing-calc";
 import { useRouter } from "next/navigation";
 import { exportRoofingOrderToExcel } from "@/lib/roofing-excel";
@@ -21,18 +20,18 @@ import {
   saveRoofingOrder,
   getRoofingProducts,
   getWarehouseAccessories,
+  getCustomersDirectory,
   saveToLocalStorage,
 } from "@/lib/supabase/roofing-service";
 import { saveRoofingOrderAction } from "@/app/(admin)/admin/orders/actions";
 import { RoofingInvoicePrint } from "./RoofingInvoicePrint";
 import {
   RoofingProductPreset,
-  ROOFING_PRODUCTS_CATALOG,
   AccessoryPreset,
-  ACCESSORIES_CATALOG,
-  CUSTOMERS_CATALOG,
+  CustomerPreset,
   SHARED_UOM_NAMES,
   normalizeAccessoryUnit,
+  filterRoofingProductCatalog,
 } from "@/lib/catalogs";
 import {
   Plus,
@@ -41,7 +40,6 @@ import {
   FileSpreadsheet,
   Save,
   RotateCcw,
-  Sparkles,
   Layers,
   Wrench,
   CheckCircle2,
@@ -153,12 +151,10 @@ export function RoofingOrderForm({
   const [customerSearchQuery, setCustomerSearchQuery] = useState("");
   const [activeProductDropdownGroupId, setActiveProductDropdownGroupId] = useState<string | null>(null);
 
-  // Catalog tôn (khởi tạo từ preset và tự động nạp từ CSDL nếu có)
-  // Catalog tôn (khởi tạo từ preset và tự động nạp từ CSDL nếu có)
-  const [productCatalog, setProductCatalog] = useState<RoofingProductPreset[]>(ROOFING_PRODUCTS_CATALOG);
-
-  // Catalog phụ kiện kho hàng (nạp động từ Supabase inventory_items & products)
-  const [warehouseAccessories, setWarehouseAccessories] = useState<AccessoryPreset[]>(ACCESSORIES_CATALOG);
+  // Catalog tôn / phụ kiện / khách — chỉ từ CSDL thật
+  const [productCatalog, setProductCatalog] = useState<RoofingProductPreset[]>([]);
+  const [warehouseAccessories, setWarehouseAccessories] = useState<AccessoryPreset[]>([]);
+  const [customersDirectory, setCustomersDirectory] = useState<CustomerPreset[]>([]);
   const [activeAccessoryDropdownId, setActiveAccessoryDropdownId] = useState<string | null>(null);
   const [showWarehouseModal, setShowWarehouseModal] = useState(false);
   const [warehouseSearchQuery, setWarehouseSearchQuery] = useState("");
@@ -166,15 +162,15 @@ export function RoofingOrderForm({
 
   useEffect(() => {
     let isMounted = true;
-    getRoofingProducts().then((products) => {
-      if (isMounted && products && products.length > 0) {
-        setProductCatalog(products);
-      }
-    });
-    getWarehouseAccessories().then((accessories) => {
-      if (isMounted && accessories && accessories.length > 0) {
-        setWarehouseAccessories(accessories);
-      }
+    Promise.all([
+      getRoofingProducts(),
+      getWarehouseAccessories(),
+      getCustomersDirectory(),
+    ]).then(([products, accessories, customers]) => {
+      if (!isMounted) return;
+      setProductCatalog(products || []);
+      setWarehouseAccessories(accessories || []);
+      setCustomersDirectory(customers || []);
     });
     return () => {
       isMounted = false;
@@ -226,7 +222,7 @@ export function RoofingOrderForm({
   };
 
   // Chọn khách hàng từ danh bạ gợi ý
-  const handleSelectCustomer = (customer: (typeof CUSTOMERS_CATALOG)[0]) => {
+  const handleSelectCustomer = (customer: CustomerPreset) => {
     updateCustomer("name", customer.name);
     updateCustomer("phone", customer.phone);
     updateCustomer("address", customer.address);
@@ -234,8 +230,8 @@ export function RoofingOrderForm({
     toast.success(`Đã chọn khách hàng: ${customer.name}`);
   };
 
-  // Lọc danh bạ khách hàng
-  const filteredCustomers = CUSTOMERS_CATALOG.filter(
+  // Lọc danh bạ khách hàng từ CSDL
+  const filteredCustomers = customersDirectory.filter(
     (c) =>
       c.name.toLowerCase().includes(customerSearchQuery.toLowerCase()) ||
       c.phone.includes(customerSearchQuery) ||
@@ -514,23 +510,20 @@ export function RoofingOrderForm({
     });
   };
 
-  // Nạp dữ liệu mẫu
-  const handleLoadSample = () => {
-    setOrder(SAMPLE_EXCEL_ORDER);
-    toast.info("Đã tải dữ liệu mẫu từ file hoá đơn tôn bản chính.xlsx (11 dòng cắt tôn + 3 phụ kiện)!");
-  };
-
   // Làm mới đơn (Trang trắng hoàn toàn với mã mới)
   const handleReset = () => {
     setOrder(createBlankRoofingOrder(true));
     toast.success("Đã làm mới form tạo đơn (Trang trắng sạch sẽ)!");
   };
 
-  // Xuất file Excel đúng form mẫu "hoá đơn tôn bản chính.xlsx"
+  // Xuất file Excel đúng form mẫu "phieu_thanh_toan_mau.xlsx"
   const handleExportExcel = async () => {
     try {
-      await exportRoofingOrderToExcel(order, `Hoa_Don_${order.orderCode || "Ton"}.xlsx`);
-      toast.success("Đã xuất file Excel đúng mẫu hoá đơn tôn bản chính!");
+      await exportRoofingOrderToExcel(
+        order,
+        `Phieu_Thanh_Toan_${order.orderCode || "Ton"}.xlsx`
+      );
+      toast.success("Đã xuất file Excel đúng mẫu phiếu thanh toán!");
     } catch (err) {
       console.error(err);
       toast.error("Lỗi khi xuất file Excel");
@@ -604,29 +597,17 @@ export function RoofingOrderForm({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {/* Nút Làm Mới / Nạp Mẫu — chỉ khi tạo mới */}
+            {/* Nút Làm Mới — chỉ khi tạo mới */}
             {!isEdit && (
-              <>
-                <button
-                  type="button"
-                  onClick={handleReset}
-                  className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg transition-colors cursor-pointer"
-                  title="Xóa sạch dữ liệu để tạo đơn mới từ đầu"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                  Làm Mới (Trang Trắng)
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleLoadSample}
-                  className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-blue-700 dark:text-blue-400 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/60 rounded-lg transition-colors cursor-pointer"
-                  title="Nạp dữ liệu mẫu 11 dòng cắt tôn của Anh Việt"
-                >
-                  <Sparkles className="w-4 h-4 text-blue-600" />
-                  Nạp Mẫu File Excel
-                </button>
-              </>
+              <button
+                type="button"
+                onClick={handleReset}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg transition-colors cursor-pointer"
+                title="Xóa sạch dữ liệu để tạo đơn mới từ đầu"
+              >
+                <RotateCcw className="w-4 h-4" />
+                Làm Mới (Trang Trắng)
+              </button>
             )}
 
             {/* Nút Xuất Excel */}
@@ -888,7 +869,7 @@ export function RoofingOrderForm({
                   <div className="relative">
                     <input
                       type="text"
-                      placeholder="Gõ mã hoặc tên loại tôn (VD: TON-OLYMPIC-04, Đông Á, 0.45)..."
+                      placeholder="Gõ mã kho hoặc tên (VD: OLPXX, OLPXD, Đông Á, 0.45)..."
                       value={group.productName}
                       onFocus={() => setActiveProductDropdownGroupId(group.id)}
                       onChange={(e) => {
@@ -917,25 +898,17 @@ export function RoofingOrderForm({
                       className="absolute left-0 top-full mt-1 w-full bg-white dark:bg-[#1c2434] border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-30 max-h-56 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800"
                     >
                       {(() => {
-                        const term = (group.productName || "").trim().toLowerCase();
-                        const filtered = productCatalog.filter((p) => {
-                          if (!term) return true;
-                          return (
-                            (p.code && p.code.toLowerCase().includes(term)) ||
-                            (p.name && p.name.toLowerCase().includes(term)) ||
-                            (p.brand && p.brand.toLowerCase().includes(term)) ||
-                            (p.type && p.type.toLowerCase().includes(term)) ||
-                            (p.thickness && p.thickness.toLowerCase().includes(term)) ||
-                            (p.id && p.id.toLowerCase().includes(term))
-                          );
-                        });
+                        const filtered = filterRoofingProductCatalog(
+                          productCatalog,
+                          group.productName || ""
+                        );
 
                         if (filtered.length === 0) {
                           return (
                             <div className="p-3 text-xs text-slate-400 text-center">
                               Không tìm thấy loại tôn phù hợp với &ldquo;{group.productName}&rdquo;.
                               <div className="mt-1 text-[11px] text-slate-500">
-                                Bạn có thể giữ nguyên tên này để nhập tự do, hoặc thử tìm theo mã/hãng khác.
+                                Thử mã kho (OLPXX, OLPXD...), tên hãng, hoặc độ dày 0.40 / 0.45.
                               </div>
                             </div>
                           );

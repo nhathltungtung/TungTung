@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { ROOFING_PRODUCTS_CATALOG } from "@/lib/catalogs";
+import {
+  ROOFING_PRODUCTS_CATALOG,
+  filterRoofingProductCatalog,
+} from "@/lib/catalogs";
 import { deleteCustomerAction } from "@/app/(admin)/admin/customers/actions";
 
 describe("Kiểm tra chức năng Tìm kiếm theo Mã Tôn & Xoá Khách Hàng", () => {
@@ -9,15 +12,21 @@ describe("Kiểm tra chức năng Tìm kiếm theo Mã Tôn & Xoá Khách Hàng"
         expect(p.code).toBeDefined();
         expect(typeof p.code).toBe("string");
         expect(p.code.length).toBeGreaterThan(3);
-        expect(p.code).toMatch(/^TON-/);
+        expect(p.code).toMatch(/^(TON|OLP)/i);
       });
     });
 
+    it("Tìm kiếm theo mã kho OLPXX phải ra đúng tôn Olympic xốp xanh rêu", () => {
+      const filtered = filterRoofingProductCatalog(ROOFING_PRODUCTS_CATALOG, "OLPXX");
+      expect(filtered.length).toBeGreaterThanOrEqual(1);
+      expect(filtered.some((p) => p.code === "OLPXX")).toBe(true);
+      expect(filtered[0].name.toLowerCase()).toContain("olympic");
+    });
+
     it("Tìm kiếm theo mã tôn chính xác (VD: TON-OLYMPIC-04)", () => {
-      const term = "TON-OLYMPIC-04".toLowerCase();
-      const filtered = ROOFING_PRODUCTS_CATALOG.filter((p) =>
-        p.code.toLowerCase().includes(term) ||
-        p.name.toLowerCase().includes(term)
+      const filtered = filterRoofingProductCatalog(
+        ROOFING_PRODUCTS_CATALOG,
+        "TON-OLYMPIC-04"
       );
 
       expect(filtered.length).toBeGreaterThanOrEqual(1);
@@ -25,12 +34,7 @@ describe("Kiểm tra chức năng Tìm kiếm theo Mã Tôn & Xoá Khách Hàng"
     });
 
     it("Tìm kiếm theo tiền tố mã không phân biệt hoa thường (vd: ton-donga)", () => {
-      const term = "ton-donga";
-      const filtered = ROOFING_PRODUCTS_CATALOG.filter((p) =>
-        p.code.toLowerCase().includes(term) ||
-        p.name.toLowerCase().includes(term) ||
-        p.brand.toLowerCase().includes(term)
-      );
+      const filtered = filterRoofingProductCatalog(ROOFING_PRODUCTS_CATALOG, "ton-donga");
 
       expect(filtered.length).toBeGreaterThanOrEqual(1);
       expect(filtered[0].brand).toBe("Đông Á");
@@ -38,28 +42,17 @@ describe("Kiểm tra chức năng Tìm kiếm theo Mã Tôn & Xoá Khách Hàng"
     });
 
     it("Tìm kiếm theo độ dày hoặc chủng loại (vd: 0.45 hoặc xop)", () => {
-      const term1 = "0.45";
-      const filtered045 = ROOFING_PRODUCTS_CATALOG.filter((p) =>
-        p.code.toLowerCase().includes(term1) ||
-        p.name.toLowerCase().includes(term1) ||
-        p.thickness.toLowerCase().includes(term1)
-      );
+      const filtered045 = filterRoofingProductCatalog(ROOFING_PRODUCTS_CATALOG, "0.45");
       expect(filtered045.length).toBeGreaterThanOrEqual(3);
 
-      const term2 = "xop";
-      const filteredXop = ROOFING_PRODUCTS_CATALOG.filter((p) =>
-        p.code.toLowerCase().includes(term2) ||
-        p.name.toLowerCase().includes(term2) ||
-        p.type.toLowerCase().includes(term2)
-      );
+      const filteredXop = filterRoofingProductCatalog(ROOFING_PRODUCTS_CATALOG, "xop");
       expect(filteredXop.length).toBeGreaterThanOrEqual(2);
     });
 
     it("Khi không tìm thấy mã hoặc tên nào, danh sách filtered phải trả về rỗng để hiển thị thông báo thay vì trả về toàn bộ catalog", () => {
-      const term = "MA_KHONG_TON_TAI_999";
-      const filtered = ROOFING_PRODUCTS_CATALOG.filter((p) =>
-        p.code.toLowerCase().includes(term.toLowerCase()) ||
-        p.name.toLowerCase().includes(term.toLowerCase())
+      const filtered = filterRoofingProductCatalog(
+        ROOFING_PRODUCTS_CATALOG,
+        "MA_KHONG_TON_TAI_999"
       );
       expect(filtered).toHaveLength(0);
     });

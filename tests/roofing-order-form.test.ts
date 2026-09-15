@@ -488,13 +488,11 @@ describe("Tạo Đơn Hàng & Bàn Tính Cắt Tôn - Toàn Bộ Chức Năng & 
   // 8. XUẤT EXCEL & MẪU IN HOÁ ĐƠN
   // ===========================================================================
   describe("8. Chức Năng Xuất Excel & Mẫu In Hoá Đơn Chuẩn Khổ A4", () => {
-    it("buildRoofingExcelDataRows khớp layout mẫu hoá đơn tôn bản chính.xlsx", () => {
+    it("buildRoofingExcelDataRows khớp layout mẫu phiếu thanh toán", () => {
       const rows = buildRoofingExcelDataRows(SAMPLE_EXCEL_ORDER);
       const cuts = rows.filter((r) => r.kind === "cut");
       const groupTotal = rows.find((r) => r.kind === "group_total");
       const accessories = rows.filter((r) => r.kind === "accessory");
-      const grand = rows.find((r) => r.kind === "grand_total");
-      const sep = rows.find((r) => r.kind === "separator");
 
       expect(cuts).toHaveLength(11);
       expect(cuts[0].name).toContain("Olympic");
@@ -507,30 +505,28 @@ describe("Tạo Đơn Hàng & Bàn Tính Cắt Tôn - Toàn Bộ Chức Năng & 
       expect(groupTotal?.meters).toBe(40.13);
       expect(groupTotal?.widthOrUnit).toBe(1.08);
       expect(Number(Number(groupTotal?.squareMeters).toFixed(4))).toBe(43.3404);
-      expect(groupTotal?.unitPrice).toBe(111);
-      expect(Number(Number(groupTotal?.subtotal).toFixed(3))).toBe(4810.784);
+      expect(groupTotal?.unitPrice).toBe(111000);
+      expect(Number(Number(groupTotal?.subtotal).toFixed(0))).toBe(4810784);
 
       expect(accessories).toHaveLength(4);
       expect(accessories[0].name).toBe("Sườn 300");
-      expect(accessories[0].unitPrice).toBe(38);
-      expect(accessories[0].subtotal).toBe(114);
+      expect(accessories[0].unitPrice).toBe(38000);
+      expect(accessories[0].subtotal).toBe(114000);
       expect(accessories[0].mergeUnitCols).toBe(true);
 
       expect(accessories[1].name).toContain("Máng");
       expect(accessories[1].meters).toBe(14.83);
-      expect(accessories[1].unitPrice).toBe(82);
+      expect(accessories[1].unitPrice).toBe(82000);
 
       expect(accessories[2].name).toBe("Keo A500");
       expect(accessories[2].meters).toBe(5);
       expect(accessories[2].widthOrUnit).toBe("Lọ");
 
-      expect(sep?.subtotal).toBe("------------------------");
-      expect(Number(Number(grand?.subtotal).toFixed(3))).toBe(6680.844);
       expect(toExcelThousand(111000)).toBe(111);
     });
 
-    it("Hàm exportRoofingOrderToExcel tạo file từ template không bị văng lỗi", async () => {
-      const out = "tmp-hoa-don-export-test.xlsx";
+    it("Hàm exportRoofingOrderToExcel tạo file từ mẫu phiếu thanh toán", async () => {
+      const out = "tmp-phieu-thanh-toan-export-test.xlsx";
       await expect(
         exportRoofingOrderToExcel(SAMPLE_EXCEL_ORDER, out)
       ).resolves.not.toThrow();
@@ -539,13 +535,15 @@ describe("Tạo Đơn Hàng & Bàn Tính Cắt Tôn - Toàn Bộ Chức Năng & 
       const wb = new ExcelJS.Workbook();
       await wb.xlsx.readFile(out);
       const ws = wb.worksheets[0];
+      expect(String(ws.getCell("F1").value)).toContain("PHIẾU THANH TOÁN");
       expect(ws.getCell("A10").value).toBe("STT");
+      expect(String(ws.getCell("A8").value)).toContain("Anh Việt");
+      expect(String(ws.getCell("F6").value)).toMatch(/Ngày\s+\d+\s+tháng\s+\d+\s+năm\s+\d+/);
       expect(String(ws.getCell("B11").value)).toContain("Olympic");
       expect(ws.getCell("C11").value).toBe(2.96);
-      expect(Number(ws.getCell("H22").value)).toBe(111);
-      expect(Number(Number(ws.getCell("I22").value).toFixed(3))).toBe(4810.784);
-      expect(Number(Number(ws.getCell("I28").value).toFixed(3))).toBe(6680.844);
-      expect(wb.model.media?.length).toBeGreaterThanOrEqual(2);
+      expect(Number(ws.getCell("H22").value)).toBe(111000);
+      expect(Number(ws.getCell("I22").value)).toBe(4810784);
+      expect(Number(ws.getCell("I43").value)).toBe(6680844);
 
       const fs = await import("fs/promises");
       await fs.unlink(out);

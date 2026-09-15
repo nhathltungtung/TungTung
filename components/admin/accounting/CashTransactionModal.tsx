@@ -16,8 +16,6 @@ import { toast } from "sonner";
 import {
   RECEIPT_REASONS_CATALOG,
   PAYMENT_REASONS_CATALOG,
-  CUSTOMERS_CATALOG,
-  SUPPLIERS_CATALOG,
 } from "@/lib/catalogs";
 
 export interface CashTransactionData {
@@ -64,10 +62,8 @@ export function CashTransactionModal({
       category: isReceipt
         ? RECEIPT_REASONS_CATALOG[0].label
         : PAYMENT_REASONS_CATALOG[0].label,
-      counterpart: isReceipt
-        ? CUSTOMERS_CATALOG[0].name
-        : SUPPLIERS_CATALOG[0].name,
-      amount: isReceipt ? 5000000 : 10000000,
+      counterpart: "",
+      amount: 0,
       paymentMethod: "cash",
       referenceId: "",
       note: "",
@@ -94,13 +90,11 @@ export function CashTransactionModal({
           category: isReceipt
             ? RECEIPT_REASONS_CATALOG[0].label
             : PAYMENT_REASONS_CATALOG[0].label,
-          counterpart: isReceipt
-            ? CUSTOMERS_CATALOG[0].name
-            : SUPPLIERS_CATALOG[0].name,
-          amount: isReceipt ? 5000000 : 10000000,
+          counterpart: "",
+          amount: 0,
           paymentMethod: isReceipt ? "cash" : "bank_transfer",
           referenceId: "",
-          note: isReceipt ? "Thu tiền bán tôn lợp & phụ kiện" : "Chi tiền nhập vật tư kim khí",
+          note: "",
         });
       }
     }

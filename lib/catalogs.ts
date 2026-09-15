@@ -5,13 +5,37 @@
 
 export interface RoofingProductPreset {
   id: string;
-  code: string; // Mã loại tôn (VD: TON-OLYMPIC-04, TON-DONGA-045, ...)
+  code: string; // Mã kho / mã loại tôn (VD: OLPXX, TON-OLYMPIC-04, ...)
   name: string;
   brand: "Olympic" | "Hoa Sen" | "Đông Á" | "Việt Nhật" | "Khác";
   type: "1 lớp" | "Xốp chống nóng" | "Sóng ngói" | "6 sóng CN";
   thickness: string;
   width: number; // Khổ hiệu dụng (m)
   unitPrice: number; // Đơn giá tiêu chuẩn (đ/m2)
+}
+
+/** Tìm loại tôn theo mã kho, tên, hãng, chủng loại, độ dày */
+export function filterRoofingProductCatalog(
+  products: RoofingProductPreset[],
+  rawTerm: string
+): RoofingProductPreset[] {
+  const term = (rawTerm || "").trim().toLowerCase();
+  if (!term) return products;
+
+  return products.filter((p) => {
+    const haystack = [
+      p.code,
+      p.name,
+      p.brand,
+      p.type,
+      p.thickness,
+      p.id,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return haystack.includes(term);
+  });
 }
 
 export interface AccessoryPreset {
@@ -56,7 +80,58 @@ export interface CategoryPreset {
 }
 
 // 1. CATALOG CÁC LOẠI TÔN LỢP PHỔ BIẾN TẠI XƯỞNG
+// Ưu tiên mã kho thực tế (OLPXX, OLPXD...) để gõ tìm trên form cắt tôn
 export const ROOFING_PRODUCTS_CATALOG: RoofingProductPreset[] = [
+  {
+    id: "olpxx",
+    code: "OLPXX",
+    name: "Tôn 0.40 Xanh Rêu Olympic Xốp 3+ 11 sóng",
+    brand: "Olympic",
+    type: "Xốp chống nóng",
+    thickness: "0.40mm",
+    width: 1.08,
+    unitPrice: 164000,
+  },
+  {
+    id: "olpxd",
+    code: "OLPXD",
+    name: "Tôn 0.40 Đỏ Olympic Xốp 3+ 11 sóng",
+    brand: "Olympic",
+    type: "Xốp chống nóng",
+    thickness: "0.40mm",
+    width: 1.08,
+    unitPrice: 164000,
+  },
+  {
+    id: "olpx1l",
+    code: "OLPX1L",
+    name: "Tôn 0.40 Đỏ Olympic 1 Lớp 11 sóng",
+    brand: "Olympic",
+    type: "1 lớp",
+    thickness: "0.40mm",
+    width: 1.08,
+    unitPrice: 111000,
+  },
+  {
+    id: "ton1lop",
+    code: "TON1LOP",
+    name: "Tôn 1 Lớp Olympic",
+    brand: "Olympic",
+    type: "1 lớp",
+    thickness: "0.40mm",
+    width: 1.08,
+    unitPrice: 111000,
+  },
+  {
+    id: "tonxop",
+    code: "TONXOP",
+    name: "Tôn Xốp Cách Nhiệt",
+    brand: "Olympic",
+    type: "Xốp chống nóng",
+    thickness: "0.40mm",
+    width: 1.08,
+    unitPrice: 165000,
+  },
   {
     id: "ton-olympic-04-xanh-reu",
     code: "TON-OLYMPIC-04",

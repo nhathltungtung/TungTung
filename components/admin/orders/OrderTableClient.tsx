@@ -33,7 +33,6 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { getFromLocalStorage } from "@/lib/supabase/roofing-service";
 import { saveRoofingOrderAction } from "@/app/(admin)/admin/orders/actions";
-import { SAMPLE_EXCEL_ORDER } from "@/lib/roofing-calc";
 import { RotateCw } from "lucide-react";
 
 interface OrderTableClientProps {
@@ -67,7 +66,7 @@ export function OrderTableClient({ initialOrders }: OrderTableClientProps) {
         setOrders((prev) => {
           const existingCodes = new Set(prev.map((o) => o.orderCode));
           const toAdd = localOrders.filter(
-            (o) => !existingCodes.has(o.orderCode) && o.orderCode !== SAMPLE_EXCEL_ORDER.orderCode
+            (o) => !existingCodes.has(o.orderCode)
           );
           if (toAdd.length > 0) {
             // Tự động đồng bộ ngầm đơn offline lên CSDL Supabase
@@ -101,8 +100,11 @@ export function OrderTableClient({ initialOrders }: OrderTableClientProps) {
 
   const handleExportExcel = async (order: RoofingOrder) => {
     try {
-      await exportRoofingOrderToExcel(order, `Hoa_Don_${order.orderCode}.xlsx`);
-      toast.success(`Đã xuất file Excel đơn ${order.orderCode}!`);
+      await exportRoofingOrderToExcel(
+        order,
+        `Phieu_Thanh_Toan_${order.orderCode}.xlsx`
+      );
+      toast.success(`Đã xuất phiếu thanh toán Excel đơn ${order.orderCode}!`);
     } catch {
       toast.error("Lỗi khi xuất file Excel.");
     }

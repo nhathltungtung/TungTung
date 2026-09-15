@@ -115,6 +115,106 @@ export async function saveRoofingOrderAction(order: RoofingOrder): Promise<{
       updated_at: new Date().toISOString(),
     };
 
+    // 1b. Nếu khách chưa có trong DB → tạo mới
+    const customerName = orderPayload.customer_name;
+    const customerPhone = orderPayload.customer_phone;
+    if (customerName && customerName !== "Khách lẻ") {
+      let existingCustomer = null as { id: string } | null;
+      if (customerPhone) {
+        const { data } = await supabase
+          .from("customers")
+          .select("id")
+          .eq("phone", customerPhone)
+          .maybeSingle();
+        existingCustomer = data;
+      }
+      if (!existingCustomer) {
+        const { data } = await supabase
+          .from("customers")
+          .select("id")
+          .eq("name", customerName)
+          .maybeSingle();
+        existingCustomer = data;
+      }
+      if (!existingCustomer) {
+        await supabase.from("customers").insert({
+          name: customerName,
+          phone: customerPhone,
+          address: orderPayload.customer_address,
+          note: orderPayload.note,
+        });
+      }
+    }
+
+    // 1c. Nếu mặt hàng tôn/phụ kiện chưa có trong kho → tạo mới
+    for (const grp of order.roofingGroups) {
+      const name = grp.productName?.trim();
+      if (!name) continue;
+      const { data: existing } = await supabase
+        .from("inventory_items")
+        .select("id")
+        .ilike("name", name)
+        .limit(1)
+        .maybeSingle();
+      if (!existing) {
+        const codeBase =
+          name
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/[^A-Za-z0-9]+/g, "")
+            .slice(0, 12)
+            .toUpperCase() || `TON${Date.now().toString().slice(-6)}`;
+        await supabase.from("inventory_items").upsert(
+          {
+            code: codeBase,
+            name,
+            unit: "m²",
+            category: "ton_lop",
+            stock_qty: 0,
+            stock_value: 0,
+            unit_cost: 0,
+            selling_price: Number(grp.unitPrice) || 0,
+            note: "Tự tạo từ đơn cắt tôn",
+          },
+          { onConflict: "code", ignoreDuplicates: true }
+        );
+      }
+    }
+
+    for (const acc of order.accessories) {
+      const name = acc.name?.trim();
+      if (!name) continue;
+      const { data: existing } = await supabase
+        .from("inventory_items")
+        .select("id")
+        .ilike("name", name)
+        .limit(1)
+        .maybeSingle();
+      if (!existing) {
+        const codeBase =
+          name
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/[^A-Za-z0-9]+/g, "")
+            .slice(0, 12)
+            .toUpperCase() || `PK${Date.now().toString().slice(-6)}`;
+        await supabase.from("inventory_items").upsert(
+          {
+            code: codeBase,
+            name,
+            unit: acc.unit || "Cây",
+            category: "phu_kien",
+            stock_qty: 0,
+            stock_value: 0,
+            unit_cost: 0,
+            selling_price: Number(acc.unitPrice) || 0,
+            note: "Tự tạo từ đơn cắt tôn",
+          },
+          { onConflict: "code", ignoreDuplicates: true }
+        );
+      }
+    }
+
     // Kiểm tra xem đơn hàng đã tồn tại theo mã chưa
     const { data: existingOrder } = await supabase
       .from("roofing_orders")

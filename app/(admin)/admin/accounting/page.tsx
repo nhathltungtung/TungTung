@@ -3,7 +3,6 @@ import { createClient } from "@/lib/supabase/server";
 import { AccountingTableClient } from "@/components/admin/accounting/AccountingTableClient";
 import { CashTransactionData } from "@/components/admin/accounting/CashTransactionModal";
 import { CustomerDebtData } from "@/components/admin/accounting/DebtCollectionModal";
-import { DEFAULT_TRANSACTIONS, DEFAULT_DEBTS } from "@/lib/accounting-data";
 import { formatCurrency } from "@/lib/roofing-calc";
 import {
   Wallet,
@@ -34,22 +33,8 @@ export default async function AccountingPage() {
       .select("*")
       .order("date", { ascending: false });
 
-    if (!txErr && txData && txData.length > 0) {
+    if (!txErr && txData) {
       transactions = txData;
-    } else {
-      // Fallback
-      transactions = DEFAULT_TRANSACTIONS.map((t) => ({
-        id: t.id,
-        voucher_code: t.voucherCode,
-        type: t.type,
-        date: t.date,
-        category: t.category,
-        counterpart: t.counterpart,
-        amount: t.amount,
-        payment_method: t.paymentMethod,
-        reference_id: null,
-        note: t.note,
-      }));
     }
 
     // 2. Tải danh sách công nợ thợ thầu
@@ -58,20 +43,8 @@ export default async function AccountingPage() {
       .select("*")
       .order("remaining_debt", { ascending: false });
 
-    if (!debtErr && debtData && debtData.length > 0) {
+    if (!debtErr && debtData) {
       debts = debtData;
-    } else {
-      // Fallback
-      debts = DEFAULT_DEBTS.map((d) => ({
-        id: d.id,
-        customer_name: d.customerName,
-        phone: d.phone,
-        address: d.address,
-        total_purchased: d.totalPurchased,
-        total_paid: d.totalPaid,
-        remaining_debt: d.remainingDebt,
-        last_payment_date: d.lastPaymentDate,
-      }));
     }
   } catch (err) {
     console.error("Lỗi khi tải dữ liệu kế toán:", err);
