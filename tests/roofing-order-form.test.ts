@@ -14,7 +14,6 @@ import {
   SAMPLE_EXCEL_ORDER,
 } from "@/lib/roofing-calc";
 import {
-  ROOFING_PRODUCTS_CATALOG,
   ACCESSORIES_CATALOG,
   CUSTOMERS_CATALOG,
 } from "@/lib/catalogs";
@@ -153,39 +152,27 @@ describe("Tạo Đơn Hàng & Bàn Tính Cắt Tôn - Toàn Bộ Chức Năng & 
   // ===========================================================================
   // 3. NGHIỆP VỤ NHÓM TÔN & CATALOG TÔN LỢP
   // ===========================================================================
-  describe("3. Nhóm Tôn & Chọn từ Catalog Tôn", () => {
-    it("Catalog tôn lợp có đầy đủ các thương hiệu chính (Olympic, Hoa Sen, Đông Á)", () => {
-      const brands = new Set(ROOFING_PRODUCTS_CATALOG.map((p) => p.brand));
-      expect(brands.has("Olympic")).toBe(true);
-      expect(brands.has("Hoa Sen")).toBe(true);
-      expect(brands.has("Đông Á")).toBe(true);
-
-      // Tất cả sản phẩm trong catalog đều có đơn giá > 0 và khổ tôn hợp lệ (thường 1.08m)
-      ROOFING_PRODUCTS_CATALOG.forEach((p) => {
-        expect(p.unitPrice).toBeGreaterThan(50000);
-        expect(p.width).toBeGreaterThan(0.5);
-        expect(p.width).toBeLessThan(2.0);
-      });
-    });
-
-    it("Chọn loại tôn từ catalog tự động cập nhật tên, khổ tôn và đơn giá đồng thời", () => {
+  describe("3. Nhóm Tôn & Chọn từ Kho Vật Tư TT88", () => {
+    it("Chọn loại tôn từ kho tự động cập nhật tên, khổ tôn và đơn giá", () => {
       const order = createBlankRoofingOrder(false);
-      const olympicProduct = ROOFING_PRODUCTS_CATALOG.find(
-        (p) => p.brand === "Olympic" && p.name.includes("11 sóng")
-      )!;
-      expect(olympicProduct).toBeDefined();
+      const warehouseItem = {
+        code: "OLPXX",
+        name: "Tôn 0.40 Xanh Rêu Olympic Xốp 3+ 11 sóng",
+        width: 1.08,
+        unitPrice: 164000,
+      };
 
-      // Giả lập handleSelectRoofingProduct
+      const displayName = `${warehouseItem.code} — ${warehouseItem.name}`;
       const updatedGroup = calculateRoofingGroup({
         ...order.roofingGroups[0],
-        productName: olympicProduct.name,
-        width: olympicProduct.width,
-        unitPrice: olympicProduct.unitPrice,
+        productName: displayName,
+        width: warehouseItem.width,
+        unitPrice: warehouseItem.unitPrice,
       });
 
-      expect(updatedGroup.productName).toBe(olympicProduct.name);
-      expect(updatedGroup.width).toBe(olympicProduct.width);
-      expect(updatedGroup.unitPrice).toBe(olympicProduct.unitPrice);
+      expect(updatedGroup.productName).toContain("OLPXX");
+      expect(updatedGroup.width).toBe(1.08);
+      expect(updatedGroup.unitPrice).toBe(164000);
     });
 
     it("Thêm nhóm loại tôn mới vào đơn hàng", () => {

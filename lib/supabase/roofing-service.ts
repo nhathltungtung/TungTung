@@ -259,25 +259,22 @@ export async function getCustomersDirectory(): Promise<CustomerPreset[]> {
 }
 
 /**
- * Tải danh mục tôn lợp chỉ từ CSDL (inventory_items + products)
+ * Tải loại tôn từ Kho Vật Tư TT88 (inventory_items) — không dùng catalog tĩnh.
+ * Ưu tiên category ton_lop; bổ sung dòng ĐVT m² / mã OLP* bị gán nhầm category.
  */
 export async function getRoofingProducts(): Promise<RoofingProductPreset[]> {
   try {
     const supabase = createClient();
 
-    const [invResult, prodResult] = await Promise.all([
-      supabase
-        .from("inventory_items")
-        .select("id, code, name, category, unit, stock_qty, selling_price")
-        .order("name"),
-      supabase
-        .from("products")
-        .select("id, code, name, category, unit, default_width, unit_price, stock_quantity")
-        .order("name"),
-    ]);
+    const { data: itemsFromInv, error } = await supabase
+      .from("inventory_items")
+      .select("id, code, name, category, unit, stock_qty, selling_price")
+      .order("code", { ascending: true });
 
-    const itemsFromInv = invResult.data || [];
-    const itemsFromProd = prodResult.data || [];
+    if (error) {
+      console.error("getRoofingProducts:", error.message);
+      return [];
+    }
 
     const dbProducts: RoofingProductPreset[] = [];
     const seenCodes = new Set<string>();
@@ -304,32 +301,40 @@ export async function getRoofingProducts(): Promise<RoofingProductPreset[]> {
       const unit = normalizeUnit(item.unit || "");
       const name = (item.name || "").toLowerCase();
       const code = (item.code || "").toLowerCase();
+
+      if (cat === "ton_lop" || cat === "ton") return true;
+      if (unit === "m2" || unit.includes("m2")) {
+        return (
+          name.includes("tôn") ||
+          name.includes("ton") ||
+          name.includes("olp") ||
+          code.includes("olp") ||
+          code.includes("ton") ||
+          looksLikeSku(item.name || "")
+        );
+      }
       return (
-        cat === "ton_lop" ||
-        cat === "ton" ||
-        unit === "m2" ||
-        unit.includes("m2") ||
-        name.includes("tôn") ||
-        name.includes("ton") ||
-        name.includes("olp") ||
         code.includes("olp") ||
-        code.includes("ton") ||
+        name.includes("olp") ||
         (looksLikeSku(item.name || "") &&
           (code.includes("tôn") || code.includes("ton") || code.includes("olympic")))
       );
     };
 
-    const roofingInvItems = itemsFromInv.filter(isRoofingInventory).sort((a, b) => {
-      if (a.category === "ton_lop" && b.category !== "ton_lop") return -1;
-      if (a.category !== "ton_lop" && b.category === "ton_lop") return 1;
-      return 0;
-    });
+    const roofingInvItems = (itemsFromInv || [])
+      .filter(isRoofingInventory)
+      .sort((a, b) => {
+        if (a.category === "ton_lop" && b.category !== "ton_lop") return -1;
+        if (a.category !== "ton_lop" && b.category === "ton_lop") return 1;
+        return String(a.code || "").localeCompare(String(b.code || ""), "vi");
+      });
 
     for (const item of roofingInvItems) {
       let code = (item.code || "").trim();
       let name = (item.name || "").trim();
       if (!code && !name) continue;
 
+      // Đảo mã ↔ tên khi nhập nhầm cột trong kho
       if (
         (code.length > 20 && looksLikeSku(name)) ||
         (looksLikeSku(name) && !looksLikeSku(code) && name.length < code.length)
@@ -385,60 +390,7 @@ export async function getRoofingProducts(): Promise<RoofingProductPreset[]> {
         type,
         thickness,
         width: 1.08,
-        unitPrice: Number(item.selling_price) || 110000,
-      });
-    }
-
-    for (const p of itemsFromProd) {
-      if (p.category === "phu_kien") continue;
-
-      const code = (p.code || "").trim();
-      const name = (p.name || "").trim();
-      if (!name) continue;
-
-      const codeKey = code ? code.toLowerCase() : "";
-      const nameKey = name ? name.toLowerCase() : "";
-
-      if ((codeKey && seenCodes.has(codeKey)) || (nameKey && seenNames.has(nameKey))) {
-        continue;
-      }
-      if (codeKey) seenCodes.add(codeKey);
-      if (nameKey) seenNames.add(nameKey);
-
-      const scanText = `${name} ${code}`.toLowerCase();
-      let brand: RoofingProductPreset["brand"] = "Khác";
-      if (scanText.includes("olympic") || scanText.includes("olp")) brand = "Olympic";
-      else if (scanText.includes("hoa sen") || scanText.includes("hoasen")) brand = "Hoa Sen";
-      else if (scanText.includes("đông á") || scanText.includes("donga")) brand = "Đông Á";
-      else if (scanText.includes("việt nhật") || scanText.includes("vietnhat")) brand = "Việt Nhật";
-
-      let type: RoofingProductPreset["type"] = "1 lớp";
-      if (
-        scanText.includes("xốp") ||
-        scanText.includes("cách nhiệt") ||
-        scanText.includes("xop")
-      ) {
-        type = "Xốp chống nóng";
-      } else if (scanText.includes("ngói") || scanText.includes("ngoi")) {
-        type = "Sóng ngói";
-      } else if (scanText.includes("6 sóng") || scanText.includes("công nghiệp")) {
-        type = "6 sóng CN";
-      }
-
-      const thickMatch = scanText.match(/0[.,]\d+/);
-      const thickness = thickMatch
-        ? `${thickMatch[0].replace(",", ".")}mm`
-        : "0.40mm";
-
-      dbProducts.push({
-        id: p.id || code,
-        code: code || p.id,
-        name,
-        brand,
-        type,
-        thickness,
-        width: Number(p.default_width) || 1.08,
-        unitPrice: Number(p.unit_price) || 110000,
+        unitPrice: Number(item.selling_price) || 0,
       });
     }
 

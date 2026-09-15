@@ -1,57 +1,71 @@
 import { describe, it, expect } from "vitest";
 import {
-  ROOFING_PRODUCTS_CATALOG,
+  RoofingProductPreset,
   filterRoofingProductCatalog,
+  ROOFING_PRODUCTS_CATALOG,
 } from "@/lib/catalogs";
 import { deleteCustomerAction } from "@/app/(admin)/admin/customers/actions";
 
+/** Fixture mô phỏng dòng tôn lấy từ Kho TT88 (không dùng catalog tĩnh) */
+const WAREHOUSE_ROOFING_FIXTURE: RoofingProductPreset[] = [
+  {
+    id: "inv-olpxx",
+    code: "OLPXX",
+    name: "Tôn 0.40 Xanh Rêu Olympic Xốp 3+ 11 sóng",
+    brand: "Olympic",
+    type: "Xốp chống nóng",
+    thickness: "0.40mm",
+    width: 1.08,
+    unitPrice: 164000,
+  },
+  {
+    id: "inv-olpxd",
+    code: "OLPXD",
+    name: "Tôn 0.40 Đỏ Olympic Xốp 3+ 11 sóng",
+    brand: "Olympic",
+    type: "Xốp chống nóng",
+    thickness: "0.40mm",
+    width: 1.08,
+    unitPrice: 164000,
+  },
+  {
+    id: "inv-ton1lop",
+    code: "TON1LOP",
+    name: "Tôn 1 Lớp Olympic",
+    brand: "Olympic",
+    type: "1 lớp",
+    thickness: "0.40mm",
+    width: 1.08,
+    unitPrice: 111000,
+  },
+];
+
 describe("Kiểm tra chức năng Tìm kiếm theo Mã Tôn & Xoá Khách Hàng", () => {
-  describe("1. Tìm kiếm loại tôn theo Mã (code) và Tên", () => {
-    it("Mọi sản phẩm trong ROOFING_PRODUCTS_CATALOG đều phải có mã (code) chuẩn", () => {
-      ROOFING_PRODUCTS_CATALOG.forEach((p) => {
-        expect(p.code).toBeDefined();
-        expect(typeof p.code).toBe("string");
-        expect(p.code.length).toBeGreaterThan(3);
-        expect(p.code).toMatch(/^(TON|OLP)/i);
-      });
+  describe("1. Tìm kiếm loại tôn theo mã kho (nguồn Kho TT88)", () => {
+    it("Catalog tôn tĩnh phải rỗng — không còn dữ liệu fake", () => {
+      expect(ROOFING_PRODUCTS_CATALOG).toHaveLength(0);
     });
 
-    it("Tìm kiếm theo mã kho OLPXX phải ra đúng tôn Olympic xốp xanh rêu", () => {
-      const filtered = filterRoofingProductCatalog(ROOFING_PRODUCTS_CATALOG, "OLPXX");
+    it("Tìm kiếm theo mã kho OLPXX phải ra đúng tôn từ fixture kho", () => {
+      const filtered = filterRoofingProductCatalog(WAREHOUSE_ROOFING_FIXTURE, "OLPXX");
       expect(filtered.length).toBeGreaterThanOrEqual(1);
       expect(filtered.some((p) => p.code === "OLPXX")).toBe(true);
       expect(filtered[0].name.toLowerCase()).toContain("olympic");
     });
 
-    it("Tìm kiếm theo mã tôn chính xác (VD: TON-OLYMPIC-04)", () => {
+    it("Tìm kiếm theo mã TON1LOP", () => {
+      const filtered = filterRoofingProductCatalog(WAREHOUSE_ROOFING_FIXTURE, "TON1LOP");
+      expect(filtered.some((p) => p.code === "TON1LOP")).toBe(true);
+    });
+
+    it("Tìm kiếm theo tiền tố không phân biệt hoa thường (vd: olpx)", () => {
+      const filtered = filterRoofingProductCatalog(WAREHOUSE_ROOFING_FIXTURE, "olpx");
+      expect(filtered.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it("Khi không tìm thấy mã, danh sách filtered phải rỗng", () => {
       const filtered = filterRoofingProductCatalog(
-        ROOFING_PRODUCTS_CATALOG,
-        "TON-OLYMPIC-04"
-      );
-
-      expect(filtered.length).toBeGreaterThanOrEqual(1);
-      expect(filtered.some((p) => p.code === "TON-OLYMPIC-04")).toBe(true);
-    });
-
-    it("Tìm kiếm theo tiền tố mã không phân biệt hoa thường (vd: ton-donga)", () => {
-      const filtered = filterRoofingProductCatalog(ROOFING_PRODUCTS_CATALOG, "ton-donga");
-
-      expect(filtered.length).toBeGreaterThanOrEqual(1);
-      expect(filtered[0].brand).toBe("Đông Á");
-      expect(filtered[0].code).toBe("TON-DONGA-045");
-    });
-
-    it("Tìm kiếm theo độ dày hoặc chủng loại (vd: 0.45 hoặc xop)", () => {
-      const filtered045 = filterRoofingProductCatalog(ROOFING_PRODUCTS_CATALOG, "0.45");
-      expect(filtered045.length).toBeGreaterThanOrEqual(3);
-
-      const filteredXop = filterRoofingProductCatalog(ROOFING_PRODUCTS_CATALOG, "xop");
-      expect(filteredXop.length).toBeGreaterThanOrEqual(2);
-    });
-
-    it("Khi không tìm thấy mã hoặc tên nào, danh sách filtered phải trả về rỗng để hiển thị thông báo thay vì trả về toàn bộ catalog", () => {
-      const filtered = filterRoofingProductCatalog(
-        ROOFING_PRODUCTS_CATALOG,
+        WAREHOUSE_ROOFING_FIXTURE,
         "MA_KHONG_TON_TAI_999"
       );
       expect(filtered).toHaveLength(0);

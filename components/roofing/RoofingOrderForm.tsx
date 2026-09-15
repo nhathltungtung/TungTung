@@ -151,7 +151,7 @@ export function RoofingOrderForm({
   const [customerSearchQuery, setCustomerSearchQuery] = useState("");
   const [activeProductDropdownGroupId, setActiveProductDropdownGroupId] = useState<string | null>(null);
 
-  // Catalog tôn / phụ kiện / khách — chỉ từ CSDL thật
+  // Tôn / phụ kiện / khách — nạp từ Kho TT88 & bảng customers
   const [productCatalog, setProductCatalog] = useState<RoofingProductPreset[]>([]);
   const [warehouseAccessories, setWarehouseAccessories] = useState<AccessoryPreset[]>([]);
   const [customersDirectory, setCustomersDirectory] = useState<CustomerPreset[]>([]);
@@ -261,14 +261,17 @@ export function RoofingOrderForm({
     });
   };
 
-  // Chọn loại tôn từ catalog (Cập nhật đồng thời tên, khổ, giá và tự động tính toán lại diện tích & thành tiền)
+  // Chọn loại tôn từ Kho Vật Tư TT88 (cập nhật tên, khổ, giá)
   const handleSelectRoofingProduct = (groupId: string, product: RoofingProductPreset) => {
     setOrder((prev) => {
       const newGroups = prev.roofingGroups.map((g) => {
         if (g.id !== groupId) return g;
+        const displayName = product.code
+          ? `${product.code} — ${product.name}`
+          : product.name;
         return calculateRoofingGroup({
           ...g,
-          productName: product.name,
+          productName: displayName,
           width: product.width,
           unitPrice: product.unitPrice,
         });
@@ -281,7 +284,9 @@ export function RoofingOrderForm({
       };
     });
     setActiveProductDropdownGroupId(null);
-    toast.success(`Đã chọn tôn: ${product.name} (Khổ ${product.width}m, giá ${formatCurrency(product.unitPrice)}/m²)`);
+    toast.success(
+      `Đã chọn từ kho: ${product.code || product.name} (Khổ ${product.width}m, giá ${formatCurrency(product.unitPrice)}/m²)`
+    );
   };
 
   // 3. Cập nhật dòng quy cách cắt
@@ -864,12 +869,12 @@ export function RoofingOrderForm({
                 {/* Tên loại tôn & Chủng loại */}
                 <div className="sm:col-span-7 relative" data-roofing-dropdown={group.id}>
                   <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                    Tên Loại Tôn & Chủng Loại (Gõ nhập hoặc chọn từ Catalog)
+                    Tên Loại Tôn & Chủng Loại (Chọn từ Kho Vật Tư TT88)
                   </label>
                   <div className="relative">
                     <input
                       type="text"
-                      placeholder="Gõ mã kho hoặc tên (VD: OLPXX, OLPXD, Đông Á, 0.45)..."
+                      placeholder="Gõ mã kho hoặc tên tôn trong kho (VD: OLPXX, OLPXD, TON1LOP)..."
                       value={group.productName}
                       onFocus={() => setActiveProductDropdownGroupId(group.id)}
                       onChange={(e) => {
@@ -891,7 +896,7 @@ export function RoofingOrderForm({
                     </button>
                   </div>
 
-                  {/* Dropdown Catalog Tôn */}
+                  {/* Dropdown tôn từ kho inventory_items */}
                   {activeProductDropdownGroupId === group.id && (
                     <div
                       data-roofing-dropdown={group.id}
@@ -903,12 +908,23 @@ export function RoofingOrderForm({
                           group.productName || ""
                         );
 
+                        if (productCatalog.length === 0) {
+                          return (
+                            <div className="p-3 text-xs text-slate-400 text-center">
+                              Chưa có mặt hàng tôn trong Kho Vật Tư TT88.
+                              <div className="mt-1 text-[11px] text-slate-500">
+                                Vào Admin → Kho hàng để thêm mã tôn (category tôn lợp / ĐVT m²).
+                              </div>
+                            </div>
+                          );
+                        }
+
                         if (filtered.length === 0) {
                           return (
                             <div className="p-3 text-xs text-slate-400 text-center">
-                              Không tìm thấy loại tôn phù hợp với &ldquo;{group.productName}&rdquo;.
+                              Không tìm thấy tôn trong kho khớp &ldquo;{group.productName}&rdquo;.
                               <div className="mt-1 text-[11px] text-slate-500">
-                                Thử mã kho (OLPXX, OLPXD...), tên hãng, hoặc độ dày 0.40 / 0.45.
+                                Thử mã kho (OLPXX, OLPXD...) hoặc tên hàng đang có trong kho.
                               </div>
                             </div>
                           );

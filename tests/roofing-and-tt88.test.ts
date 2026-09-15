@@ -130,36 +130,39 @@ describe("TungTung Roofing Math & TT88 Business Engine", () => {
     expect(ACCESSORY_UNITS.length).toBeGreaterThanOrEqual(8);
   });
 
-  it("Xác thực thao tác chọn loại tôn từ catalog tự động điền Tên, Khổ và Đơn giá vào Nhóm Tôn #1", async () => {
-    const { ROOFING_PRODUCTS_CATALOG } = await import("@/lib/catalogs");
+  it("Xác thực thao tác chọn loại tôn từ kho tự động điền Tên, Khổ và Đơn giá vào Nhóm Tôn #1", async () => {
     const { createBlankRoofingOrder } = await import("@/components/roofing/RoofingOrderForm");
 
     const order = createBlankRoofingOrder();
     const group1 = order.roofingGroups[0];
 
-    // Chọn tôn Hoa Sen 11 sóng từ Catalog
-    const hoaSenProduct = ROOFING_PRODUCTS_CATALOG.find((p) => p.name.includes("Hoa Sen"))!;
-    expect(hoaSenProduct).toBeDefined();
+    // Giả lập chọn tôn từ Kho TT88 (OLPXX)
+    const warehouseProduct = {
+      code: "OLPXX",
+      name: "Tôn 0.40 Xanh Rêu Olympic Xốp 3+ 11 sóng",
+      width: 1.08,
+      unitPrice: 164000,
+    };
 
-    // Giả lập hàm áp dụng sản phẩm vào nhóm tôn
     const updatedGroup = calculateRoofingGroup({
       ...group1,
-      productName: hoaSenProduct.name,
-      width: hoaSenProduct.width,
-      unitPrice: hoaSenProduct.unitPrice,
+      productName: `${warehouseProduct.code} — ${warehouseProduct.name}`,
+      width: warehouseProduct.width,
+      unitPrice: warehouseProduct.unitPrice,
       items: [
         { id: "cut-1", length: 6.0, quantity: 2, totalMeters: 12.0 },
       ],
     });
 
-    // Kiểm tra fill đầy đủ thông số
-    expect(updatedGroup.productName).toBe(hoaSenProduct.name);
-    expect(updatedGroup.width).toBe(hoaSenProduct.width);
-    expect(updatedGroup.unitPrice).toBe(hoaSenProduct.unitPrice);
+    expect(updatedGroup.productName).toContain("OLPXX");
+    expect(updatedGroup.width).toBe(warehouseProduct.width);
+    expect(updatedGroup.unitPrice).toBe(warehouseProduct.unitPrice);
     expect(updatedGroup.totalPieces).toBe(2);
     expect(updatedGroup.totalMeters).toBe(12.0);
-    expect(updatedGroup.totalSquareMeters).toBe(12.0 * hoaSenProduct.width);
-    expect(updatedGroup.subtotal).toBe(Math.round(12.0 * hoaSenProduct.width * hoaSenProduct.unitPrice));
+    expect(updatedGroup.totalSquareMeters).toBe(12.0 * warehouseProduct.width);
+    expect(updatedGroup.subtotal).toBe(
+      Math.round(12.0 * warehouseProduct.width * warehouseProduct.unitPrice)
+    );
   });
 });
 
