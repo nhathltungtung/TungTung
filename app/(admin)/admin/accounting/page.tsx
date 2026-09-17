@@ -3,6 +3,11 @@ import { createClient } from "@/lib/supabase/server";
 import { AccountingTableClient } from "@/components/admin/accounting/AccountingTableClient";
 import { CashTransactionData } from "@/components/admin/accounting/CashTransactionModal";
 import { CustomerDebtData } from "@/components/admin/accounting/DebtCollectionModal";
+import { getRoofingOrdersServer } from "@/lib/supabase/roofing-service.server";
+import {
+  SalesRevenueRecord,
+  DEFAULT_SALES_REVENUE,
+} from "@/lib/accounting-data";
 import { formatCurrency } from "@/lib/roofing-calc";
 import {
   Wallet,
@@ -14,8 +19,8 @@ import {
 } from "lucide-react";
 
 export const metadata = {
-  title: "Kế Toán Sổ Quỹ S1-HKD & Công Nợ | Đại Lý Tôn Thép Tuấn Hương",
-  description: "Theo dõi Thu - Chi - Tồn quỹ tiền mặt và quản lý sổ công nợ thợ thầu theo Thông tư 88/2021/TT-BTC",
+  title: "Kế Toán Sổ Quỹ S1-HKD & Doanh Thu S3-HKD | Đại Lý Tôn Thép Tuấn Hương",
+  description: "Theo dõi Thu - Chi - Tồn quỹ tiền mặt, doanh thu bán hàng S3-HKD và quản lý sổ công nợ thợ thầu theo Thông tư 88/2021/TT-BTC",
 };
 
 export const dynamic = "force-dynamic";
@@ -23,6 +28,7 @@ export const dynamic = "force-dynamic";
 export default async function AccountingPage() {
   let transactions: CashTransactionData[] = [];
   let debts: CustomerDebtData[] = [];
+  let salesRecords: SalesRevenueRecord[] = [];
 
   try {
     const supabase = await createClient();
@@ -46,8 +52,36 @@ export default async function AccountingPage() {
     if (!debtErr && debtData) {
       debts = debtData;
     }
+
+    // 3. Tải danh sách đơn hàng cho Sổ Doanh Thu Bán Hàng (S3-HKD)
+    const orders = await getRoofingOrdersServer();
+    if (orders && orders.length > 0) {
+      salesRecords = orders.map((o) => {
+        const roofingNames = o.roofingGroups?.map((g) => g.productName || "Tôn lợp") || [];
+        const accessoryNames = o.accessories?.map((a) => a.name).filter(Boolean) || [];
+        const allItems = [...roofingNames, ...accessoryNames];
+        const itemsSummary = allItems.length > 0 ? allItems.join(", ") : "Tôn lợp & phụ kiện";
+
+        return {
+          id: o.id,
+          orderCode: o.orderCode,
+          date: o.createdAt?.slice(0, 10) || new Date().toISOString().slice(0, 10),
+          customerName: o.customer?.name || "Khách lẻ",
+          customerPhone: o.customer?.phone,
+          customerAddress: o.customer?.address,
+          itemsSummary,
+          totalAmount: Number(o.totalAmount) || 0,
+          paidAmount: Number(o.deposit) || 0,
+          remainingAmount: Number(o.remainingAmount) || 0,
+          status: o.status,
+        };
+      });
+    } else {
+      salesRecords = DEFAULT_SALES_REVENUE;
+    }
   } catch (err) {
     console.error("Lỗi khi tải dữ liệu kế toán:", err);
+    salesRecords = DEFAULT_SALES_REVENUE;
   }
 
   // Tính toán số liệu thống kê
@@ -146,6 +180,7 @@ export default async function AccountingPage() {
     <AccountingTableClient
       transactions={transactions}
       debts={debts}
+      salesRecords={salesRecords}
       kpiOverview={kpiOverview}
     />
   );

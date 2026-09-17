@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
+import Link from "next/link";
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/ui/table/DataTable";
 import { DataTableColumnHeader } from "@/components/ui/table/DataTableColumnHeader";
@@ -23,8 +24,10 @@ import {
   exportMauS1HKDExcel,
   exportMau01TTExcel,
   exportMau02TTExcel,
+  exportMauS3HKDExcel,
   CashTransaction,
   CustomerDebt,
+  SalesRevenueRecord,
 } from "@/lib/accounting-data";
 import {
   Plus,
@@ -39,21 +42,28 @@ import {
   CheckCircle2,
   DollarSign,
   Receipt,
+  ExternalLink,
+  Clock,
+  Layers,
+  CheckCircle,
+  XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 
 interface AccountingTableClientProps {
   transactions: CashTransactionData[];
   debts: CustomerDebtData[];
+  salesRecords?: SalesRevenueRecord[];
   kpiOverview?: React.ReactNode;
 }
 
 export function AccountingTableClient({
   transactions,
   debts,
+  salesRecords = [],
   kpiOverview,
 }: AccountingTableClientProps) {
-  const [activeTab, setActiveTab] = useState<"fund" | "debts" | "profit">("fund");
+  const [activeTab, setActiveTab] = useState<"fund" | "debts" | "revenue">("fund");
 
   // Transaction Modal State
   const [txModal, setTxModal] = useState<{
@@ -373,6 +383,168 @@ export function AccountingTableClient({
     []
   );
 
+  // Table Columns for Sổ Chi Tiết Doanh Thu Bán Hàng (Mẫu S3-HKD)
+  const salesColumns = useMemo<ColumnDef<SalesRevenueRecord>[]>(
+    () => [
+      {
+        id: "stt",
+        header: () => <div className="text-center w-10">STT</div>,
+        cell: ({ row }) => (
+          <div className="text-center font-medium text-slate-500">
+            {row.index + 1}
+          </div>
+        ),
+      },
+      {
+        accessorKey: "orderCode",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Chứng Từ / Mã Đơn" />
+        ),
+        cell: ({ row }) => (
+          <div>
+            <div className="font-bold text-slate-800 dark:text-slate-200">
+              {row.original.orderCode}
+            </div>
+            <div className="text-[11px] text-slate-400">
+              {row.original.date}
+            </div>
+          </div>
+        ),
+      },
+      {
+        accessorKey: "customerName",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Khách Hàng / Đối Tác" />
+        ),
+        cell: ({ row }) => (
+          <div>
+            <div className="font-bold text-slate-800 dark:text-slate-200">
+              {row.original.customerName}
+            </div>
+            <div className="text-[11px] text-slate-400">
+              {row.original.customerPhone || "—"} • {row.original.customerAddress || "Hưng Yên"}
+            </div>
+          </div>
+        ),
+      },
+      {
+        accessorKey: "itemsSummary",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Mặt Hàng / Quy Cách" />
+        ),
+        cell: ({ row }) => (
+          <div className="max-w-[280px] truncate text-xs text-slate-700 dark:text-slate-300" title={row.original.itemsSummary}>
+            {row.original.itemsSummary || "Tôn lợp & phụ kiện"}
+          </div>
+        ),
+      },
+      {
+        accessorKey: "totalAmount",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Doanh Thu (đ)" />
+        ),
+        cell: ({ row }) => (
+          <span className="font-bold text-slate-800 dark:text-white">
+            {formatCurrency(row.original.totalAmount)}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "paidAmount",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Đã Thu (đ)" />
+        ),
+        cell: ({ row }) => (
+          <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+            {formatCurrency(row.original.paidAmount)}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "remainingAmount",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Còn Nợ (đ)" />
+        ),
+        cell: ({ row }) => {
+          const rem = row.original.remainingAmount;
+          return rem > 0 ? (
+            <span className="text-xs font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded">
+              {formatCurrency(rem)}
+            </span>
+          ) : (
+            <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded">
+              Đã xong
+            </span>
+          );
+        },
+      },
+      {
+        accessorKey: "status",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Trạng Thái" />
+        ),
+        cell: ({ row }) => {
+          const status = row.original.status;
+          switch (status) {
+            case "completed":
+              return (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300">
+                  <CheckCircle className="w-3 h-3" /> Hoàn tất
+                </span>
+              );
+            case "cutting":
+              return (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300">
+                  <Layers className="w-3 h-3" /> Đang cắt
+                </span>
+              );
+            case "cancelled":
+              return (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-rose-100 text-rose-800 dark:bg-rose-950/50 dark:text-rose-300">
+                  <XCircle className="w-3 h-3" /> Đã huỷ
+                </span>
+              );
+            default:
+              return (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
+                  <Clock className="w-3 h-3" /> Chờ xử lý
+                </span>
+              );
+          }
+        },
+      },
+      {
+        id: "actions",
+        header: () => <div className="text-right">Xem Đơn</div>,
+        cell: () => (
+          <div className="flex justify-end">
+            <Link
+              href="/admin/orders"
+              title="Xem trong Quản lý Đơn hàng"
+              className="inline-flex p-1.5 text-slate-500 hover:text-primary rounded-md transition-colors"
+            >
+              <ExternalLink className="w-4 h-4" />
+            </Link>
+          </div>
+        ),
+      },
+    ],
+    []
+  );
+
+  const totalSalesRevenue = useMemo(
+    () => salesRecords.reduce((sum, r) => sum + (Number(r.totalAmount) || 0), 0),
+    [salesRecords]
+  );
+  const totalSalesPaid = useMemo(
+    () => salesRecords.reduce((sum, r) => sum + (Number(r.paidAmount) || 0), 0),
+    [salesRecords]
+  );
+  const totalSalesDebt = useMemo(
+    () => salesRecords.reduce((sum, r) => sum + (Number(r.remainingAmount) || 0), 0),
+    [salesRecords]
+  );
+
   return (
     <div className="space-y-6">
       {/* Header Banner */}
@@ -435,7 +607,7 @@ export function AccountingTableClient({
 
       {/* Secondary Bar: Tabs Navigation & Excel Exports */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-[#24303f] p-4 rounded-xl shadow-xs border border-slate-200 dark:border-slate-800">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => setActiveTab("fund")}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
@@ -456,10 +628,20 @@ export function AccountingTableClient({
           >
             <Users className="w-4 h-4" /> Sổ Nợ Thợ Thầu ({debts.length})
           </button>
+          <button
+            onClick={() => setActiveTab("revenue")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              activeTab === "revenue"
+                ? "bg-[#3c50e0] text-white shadow-xs"
+                : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+            }`}
+          >
+            <TrendingUp className="w-4 h-4" /> Sổ Doanh Thu (S3-HKD) ({salesRecords.length})
+          </button>
         </div>
 
-        {/* Xuất Excel BTC */}
-        <div className="flex items-center gap-1">
+        {/* Xuất Excel BTC Thông Tư 88 */}
+        <div className="flex flex-wrap items-center gap-1">
           <Button
             variant="outline"
             size="sm"
@@ -489,6 +671,22 @@ export function AccountingTableClient({
           >
             <FileSpreadsheet className="w-3.5 h-3.5 text-blue-600" /> Mẫu 01-TT
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            title="Xuất Sổ Chi Tiết Doanh Thu Bán Hàng (Mẫu S3-HKD theo TT 88)"
+            onClick={() => {
+              if (salesRecords.length > 0) {
+                exportMauS3HKDExcel(salesRecords);
+                toast.success("Đã xuất Sổ Doanh Thu Bán Hàng (Mẫu S3-HKD) thành công!");
+              } else {
+                toast.info("Chưa có dữ liệu doanh thu để xuất file.");
+              }
+            }}
+            className="flex items-center gap-1 text-slate-700 dark:text-slate-200"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5 text-purple-600" /> Sổ S3-HKD
+          </Button>
         </div>
       </div>
 
@@ -513,6 +711,57 @@ export function AccountingTableClient({
             searchKey="customer_name"
             searchPlaceholder="Tìm kiếm theo tên khách thầu..."
           />
+        </div>
+      )}
+
+      {/* Tab 3: Sổ Doanh Thu Bán Hàng (S3-HKD) */}
+      {activeTab === "revenue" && (
+        <div className="space-y-4">
+          {/* Thống kê doanh thu bán hàng S3-HKD */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="bg-white dark:bg-[#24303f] p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                Tổng Doanh Thu Phát Sinh ({salesRecords.length} đơn)
+              </span>
+              <div className="text-xl font-black text-slate-900 dark:text-white mt-1">
+                {formatCurrency(totalSalesRevenue)}
+              </div>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Căn cứ tính thuế và ghi nhận doanh thu TT88
+              </p>
+            </div>
+            <div className="bg-white dark:bg-[#24303f] p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                Đã Thu Tiền Thực Tế
+              </span>
+              <div className="text-xl font-black text-emerald-600 dark:text-emerald-400 mt-1">
+                {formatCurrency(totalSalesPaid)}
+              </div>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Đã nhập vào Sổ Quỹ Tiền Mặt S1-HKD
+              </p>
+            </div>
+            <div className="bg-white dark:bg-[#24303f] p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                Còn Nợ Chưa Thu (Nợ Gối Đầu)
+              </span>
+              <div className="text-xl font-black text-amber-600 dark:text-amber-400 mt-1">
+                {formatCurrency(totalSalesDebt)}
+              </div>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Theo dõi tại Sổ Công Nợ Thợ Thầu
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-[#24303f] p-4 rounded-xl shadow-xs border border-slate-200 dark:border-slate-800">
+            <DataTable
+              columns={salesColumns}
+              data={salesRecords}
+              searchKey="customerName"
+              searchPlaceholder="Tìm kiếm theo tên khách hàng hoặc mã đơn..."
+            />
+          </div>
         </div>
       )}
 

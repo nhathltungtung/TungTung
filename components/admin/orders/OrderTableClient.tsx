@@ -12,6 +12,7 @@ import { RoofingOrder } from "@/types/roofing";
 import { formatCurrency } from "@/lib/roofing-calc";
 import { exportRoofingOrderToExcel } from "@/lib/roofing-excel";
 import { RoofingInvoicePrint } from "@/components/roofing/RoofingInvoicePrint";
+import { OrderListPrint } from "./OrderListPrint";
 import {
   updateRoofingOrderStatusAction,
   deleteRoofingOrderAction,
@@ -43,6 +44,7 @@ export function OrderTableClient({ initialOrders }: OrderTableClientProps) {
   const router = useRouter();
   const [orders, setOrders] = useState<RoofingOrder[]>(initialOrders);
   const [selectedOrder, setSelectedOrder] = useState<RoofingOrder | null>(null);
+  const [isPrintingList, setIsPrintingList] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [deleteDialog, setDeleteDialog] = useState<{
     isOpen: boolean;
@@ -358,50 +360,66 @@ export function OrderTableClient({ initialOrders }: OrderTableClientProps) {
   );
 
   return (
-    <div className="space-y-6">
-      {/* Header Banner with Create Order Button */}
-      <div className="flex flex-wrap items-center justify-between gap-4 bg-white dark:bg-[#24303f] p-5 rounded-xl shadow-xs border border-slate-200 dark:border-slate-800">
-        <div>
-          <div className="flex items-center gap-2">
-            <Layers className="w-6 h-6 text-primary" />
-            <h1 className="text-xl font-bold text-slate-800 dark:text-white">
-              Danh Sách Đơn Hàng Cắt Tôn
-            </h1>
+    <>
+      {/* Interactive Page View - Hidden During Print */}
+      <div className="space-y-6 print:hidden">
+        {/* Header Banner with Create Order Button & Print List Button */}
+        <div className="flex flex-wrap items-center justify-between gap-4 bg-white dark:bg-[#24303f] p-5 rounded-xl shadow-xs border border-slate-200 dark:border-slate-800">
+          <div>
+            <div className="flex items-center gap-2">
+              <Layers className="w-6 h-6 text-primary" />
+              <h1 className="text-xl font-bold text-slate-800 dark:text-white">
+                Danh Sách Đơn Hàng Cắt Tôn
+              </h1>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              Quản lý lịch sử cắt tôn, thông tin khách thầu, trạng thái cán tôn và in phiếu xuất bán hàng
+            </p>
           </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            Quản lý lịch sử cắt tôn, thông tin khách thầu, trạng thái cán tôn và in phiếu xuất bán hàng
-          </p>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Nút In Danh Sách Đơn Hàng */}
+            <button
+              type="button"
+              onClick={() => setIsPrintingList(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 rounded-lg transition-colors cursor-pointer"
+              title="In Báo Cáo Tổng Hợp Danh Sách Đơn Hàng Khổ A4"
+            >
+              <Printer className="w-3.5 h-3.5 text-primary" />
+              In Danh Sách Đơn
+            </button>
+
+            {/* Nút Làm Mới */}
+            <button
+              type="button"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+              title="Tải lại danh sách đơn hàng mới nhất"
+            >
+              <RotateCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin text-primary" : ""}`} />
+              Làm Mới
+            </button>
+
+            {/* Nút Tạo Đơn Cắt Tôn Mới */}
+            <Link
+              href="/admin/orders/create"
+              className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-[#3c50e0] hover:bg-[#3344bd] active:bg-[#2a3bb8] rounded-lg shadow-xs transition-colors"
+            >
+              <Plus className="w-4 h-4" /> Tạo Đơn Cắt Tôn Mới
+            </Link>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
-            title="Tải lại danh sách đơn hàng mới nhất"
-          >
-            <RotateCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin text-primary" : ""}`} />
-            Làm Mới
-          </button>
-
-          <Link
-            href="/admin/orders/create"
-            className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-[#3c50e0] hover:bg-[#3344bd] active:bg-[#2a3bb8] rounded-lg shadow-xs transition-colors"
-          >
-            <Plus className="w-4 h-4" /> Tạo Đơn Cắt Tôn Mới
-          </Link>
+        {/* Main DataTable */}
+        <div className="bg-white dark:bg-[#24303f] p-4 rounded-xl shadow-xs border border-slate-200 dark:border-slate-800">
+          <DataTable
+            columns={columns}
+            data={orders}
+            searchKey="orderCode"
+            searchPlaceholder="Tìm kiếm theo mã đơn (HĐ-...) hoặc tên khách..."
+          />
         </div>
-      </div>
-
-      {/* Main DataTable */}
-      <div className="bg-white dark:bg-[#24303f] p-4 rounded-xl shadow-xs border border-slate-200 dark:border-slate-800">
-        <DataTable
-          columns={columns}
-          data={orders}
-          searchKey="orderCode"
-          searchPlaceholder="Tìm kiếm theo mã đơn (HĐ-...) hoặc tên khách..."
-        />
       </div>
 
       {/* Modal Xem & In Hoá Đơn A4/A5 */}
@@ -424,7 +442,7 @@ export function OrderTableClient({ initialOrders }: OrderTableClientProps) {
                 variant="primary"
                 size="sm"
                 onClick={() => window.print()}
-                className="flex items-center gap-1.5"
+                className="flex items-center gap-1.5 bg-[#3c50e0] hover:bg-[#3344bd]"
               >
                 <Printer className="w-4 h-4" /> In Phiếu (A4/A5)
               </Button>
@@ -432,6 +450,37 @@ export function OrderTableClient({ initialOrders }: OrderTableClientProps) {
           }
         >
           <RoofingInvoicePrint order={selectedOrder} />
+        </Modal>
+      )}
+
+      {/* Modal Xem & In Báo Cáo Danh Sách Đơn Hàng A4 */}
+      {isPrintingList && (
+        <Modal
+          isOpen={isPrintingList}
+          onClose={() => setIsPrintingList(false)}
+          title="Báo Cáo Tổng Hợp Danh Sách Đơn Hàng"
+          maxWidth="2xl"
+          footer={
+            <div className="flex justify-end gap-2 w-full">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsPrintingList(false)}
+              >
+                Đóng
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => window.print()}
+                className="flex items-center gap-1.5 bg-[#3c50e0] hover:bg-[#3344bd]"
+              >
+                <Printer className="w-4 h-4" /> In Danh Sách (A4)
+              </Button>
+            </div>
+          }
+        >
+          <OrderListPrint orders={orders} />
         </Modal>
       )}
 
@@ -447,6 +496,6 @@ export function OrderTableClient({ initialOrders }: OrderTableClientProps) {
         onConfirm={handleDeleteOrder}
         onClose={() => setDeleteDialog({ isOpen: false, order: null })}
       />
-    </div>
+    </>
   );
 }

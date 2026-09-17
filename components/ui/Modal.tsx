@@ -63,10 +63,10 @@ export function Modal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto print:static print:p-0 print:m-0 print:overflow-visible print:block">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
+        className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity animate-in fade-in duration-200 print:hidden"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -77,13 +77,14 @@ export function Modal({
         aria-modal="true"
         className={cn(
           "relative w-full bg-white dark:bg-[#1c2434] rounded-2xl border border-slate-200 dark:border-[#2e3a47] shadow-2xl p-6 z-10 transition-all transform animate-in fade-in zoom-in-95 duration-200",
+          "print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-none print:w-full print:static print:bg-white print:overflow-visible",
           maxWidthMap[finalWidth],
           className
         )}
       >
         {/* Header */}
         {(title || description) && (
-          <div className="flex items-start justify-between pb-4 mb-4 border-b border-slate-100 dark:border-[#2e3a47]">
+          <div className="flex items-start justify-between pb-4 mb-4 border-b border-slate-100 dark:border-[#2e3a47] print:hidden">
             <div>
               {title && (
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white leading-snug">
@@ -108,11 +109,11 @@ export function Modal({
         )}
 
         {/* Content Body */}
-        <div className="text-sm text-slate-700 dark:text-slate-300">{children}</div>
+        <div className="text-sm text-slate-700 dark:text-slate-300 print:text-black">{children}</div>
 
         {/* Footer */}
         {footer && (
-          <div className="mt-6 pt-4 border-t border-slate-100 dark:border-[#2e3a47] flex items-center justify-end gap-3">
+          <div className="mt-6 pt-4 border-t border-slate-100 dark:border-[#2e3a47] flex items-center justify-end gap-3 print:hidden">
             {footer}
           </div>
         )}

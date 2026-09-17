@@ -253,3 +253,173 @@ export function exportMau02TTExcel(tx: CashTransaction) {
   XLSX.utils.book_append_sheet(wb, ws, "Phieu_Chi_02_TT");
   XLSX.writeFile(wb, `Phieu_Chi_${tx.voucherCode}_Mau_02_TT.xlsx`);
 }
+
+export interface SalesRevenueRecord {
+  id: string;
+  orderCode: string;
+  date: string;
+  customerName: string;
+  customerPhone?: string;
+  customerAddress?: string;
+  itemsSummary: string;
+  totalAmount: number;
+  paidAmount: number;
+  remainingAmount: number;
+  status: "pending" | "cutting" | "completed" | "cancelled" | string;
+}
+
+export const DEFAULT_SALES_REVENUE: SalesRevenueRecord[] = [
+  {
+    id: "sale-1",
+    orderCode: "HĐ-260912-001",
+    date: "2026-09-12",
+    customerName: "Anh Việt (Khách thầu)",
+    customerPhone: "0988 567 890",
+    customerAddress: "Xã Nghĩa Dân, Kim Động, Hưng Yên",
+    itemsSummary: "Tôn xốp Hoa Sen 11 sóng 0.40mm (11 tấm), Keo silicone Apollo (5 lọ)",
+    totalAmount: 6680844,
+    paidAmount: 6680844,
+    remainingAmount: 0,
+    status: "completed",
+  },
+  {
+    id: "sale-2",
+    orderCode: "HĐ-260911-002",
+    date: "2026-09-11",
+    customerName: "Xưởng Mái Tôn Hải Yến",
+    customerPhone: "0976 112 233",
+    customerAddress: "Trương Xá, Nghĩa Dân, Hưng Yên",
+    itemsSummary: "Tôn sóng vuông mạ kẽm 0.35mm (18 tấm), Vít bắn tôn 4 phân (2 gói)",
+    totalAmount: 18500000,
+    paidAmount: 15000000,
+    remainingAmount: 3500000,
+    status: "completed",
+  },
+  {
+    id: "sale-3",
+    orderCode: "HĐ-260910-003",
+    date: "2026-09-10",
+    customerName: "Anh Thắng (Cơ khí Kim Động)",
+    customerPhone: "0912 345 678",
+    customerAddress: "Thị Trấn Lương Bằng, Kim Động, Hưng Yên",
+    itemsSummary: "Tôn lạnh không xốp Việt Nhật 0.45mm (8 tấm), Úp nóc tôn (6 mét)",
+    totalAmount: 8200000,
+    paidAmount: 5000000,
+    remainingAmount: 3200000,
+    status: "completed",
+  },
+];
+
+/**
+ * Xuất file Excel Sổ Chi Tiết Doanh Thu Bán Hàng Hoá, Dịch Vụ (Mẫu số S3-HKD theo Thông tư 88/2021/TT-BTC)
+ */
+export function exportMauS3HKDExcel(records: SalesRevenueRecord[]) {
+  const rows: (string | number)[][] = [
+    ["ĐẠI LÝ TUẤN HƯƠNG", "", "", "", "", "", "MẪU SỐ S3-HKD"],
+    ["Địa chỉ : TRƯƠNG XÁ, TOÀN THẮNG, KIM ĐỘNG, HƯNG YÊN", "", "", "", "", "", "(Ban hành kèm theo TT số 88/2021/TT-BTC)"],
+    ["Hotline : 0373208038 – 0989734768", "", "", "", "", "", "Ngày 08/10/2021 của Bộ Tài chính"],
+    [""],
+    ["", "", "", "SỔ CHI TIẾT DOANH THU BÁN HÀNG HOÁ, DỊCH VỤ"],
+    ["", "", "", `Tháng ${new Date().getMonth() + 1} Năm ${new Date().getFullYear()}`],
+    ["", "", "", "Đơn vị tính: Việt Nam Đồng (VND)"],
+    [""],
+    [
+      "STT",
+      "Ngày tháng ghi sổ",
+      "Số hiệu chứng từ",
+      "Tên người mua (Khách thầu/Khách lẻ)",
+      "Nội dung hàng hoá, dịch vụ",
+      "Doanh thu bán hàng (đ)",
+      "Đã thanh toán (đ)",
+      "Còn nợ (đ)",
+      "Ghi chú",
+    ],
+  ];
+
+  let totalRev = 0;
+  let totalPaid = 0;
+  let totalDebt = 0;
+
+  records.forEach((rec, idx) => {
+    const rev = Number(rec.totalAmount) || 0;
+    const paid = Number(rec.paidAmount) || 0;
+    const debt = Number(rec.remainingAmount) || 0;
+
+    totalRev += rev;
+    totalPaid += paid;
+    totalDebt += debt;
+
+    const statusText =
+      rec.status === "completed"
+        ? "Đã hoàn thành"
+        : rec.status === "cutting"
+        ? "Đang cắt tôn"
+        : rec.status === "cancelled"
+        ? "Đã huỷ"
+        : "Chờ xử lý";
+
+    rows.push([
+      idx + 1,
+      rec.date,
+      rec.orderCode,
+      rec.customerName,
+      rec.itemsSummary || "Tôn lợp và phụ kiện",
+      rev,
+      paid,
+      debt,
+      statusText,
+    ]);
+  });
+
+  rows.push([
+    "CỘNG",
+    "",
+    "",
+    "",
+    `Tổng cộng (${records.length} đơn bán hàng)`,
+    totalRev,
+    totalPaid,
+    totalDebt,
+    "",
+  ]);
+
+  rows.push([""]);
+  rows.push([
+    "",
+    "Người ghi sổ",
+    "",
+    "",
+    "Kế toán trưởng",
+    "",
+    "",
+    "Chủ hộ kinh doanh",
+  ]);
+  rows.push([
+    "",
+    "(Ký, họ tên)",
+    "",
+    "",
+    "(Ký, họ tên)",
+    "",
+    "",
+    "(Ký, đóng dấu)",
+  ]);
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws["!cols"] = [
+    { wch: 6 },
+    { wch: 14 },
+    { wch: 18 },
+    { wch: 28 },
+    { wch: 45 },
+    { wch: 20 },
+    { wch: 18 },
+    { wch: 18 },
+    { wch: 16 },
+  ];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "So_Doanh_Thu_S3_HKD");
+  XLSX.writeFile(wb, `So_Chi_Tiet_Doanh_Thu_Mau_S3_HKD.xlsx`);
+}
+
