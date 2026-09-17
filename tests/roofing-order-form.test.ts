@@ -512,8 +512,8 @@ describe("Tạo Đơn Hàng & Bàn Tính Cắt Tôn - Toàn Bộ Chức Năng & 
       expect(toExcelThousand(111000)).toBe(111);
     });
 
-    it("Hàm exportRoofingOrderToExcel tạo file từ mẫu phiếu thanh toán", async () => {
-      const out = "tmp-phieu-thanh-toan-export-test.xlsx";
+    it("Hàm exportRoofingOrderToExcel tạo file từ mẫu hoá đơn bán hàng Đại lý Tuấn Hương", async () => {
+      const out = "tmp-hoa-don-export-test.xlsx";
       await expect(
         exportRoofingOrderToExcel(SAMPLE_EXCEL_ORDER, out)
       ).resolves.not.toThrow();
@@ -521,16 +521,25 @@ describe("Tạo Đơn Hàng & Bàn Tính Cắt Tôn - Toàn Bộ Chức Năng & 
       const ExcelJS = (await import("exceljs")).default;
       const wb = new ExcelJS.Workbook();
       await wb.xlsx.readFile(out);
-      const ws = wb.worksheets[0];
-      expect(String(ws.getCell("F1").value)).toContain("PHIẾU THANH TOÁN");
-      expect(ws.getCell("A10").value).toBe("STT");
-      expect(String(ws.getCell("A8").value)).toContain("Anh Việt");
-      expect(String(ws.getCell("F6").value)).toMatch(/Ngày\s+\d+\s+tháng\s+\d+\s+năm\s+\d+/);
-      expect(String(ws.getCell("B11").value)).toContain("Olympic");
-      expect(ws.getCell("C11").value).toBe(2.96);
-      expect(Number(ws.getCell("H22").value)).toBe(111000);
-      expect(Number(ws.getCell("I22").value)).toBe(4810784);
-      expect(Number(ws.getCell("I43").value)).toBe(6680844);
+      const ws = wb.getWorksheet("HoaDon") || wb.worksheets[0];
+      expect(String(ws.getCell("A1").value)).toContain("ĐẠI LÝ TUẤN HƯƠNG");
+      expect(String(ws.getCell("A8").value)).toContain("HOÁ ĐƠN BÁN HÀNG");
+      expect(ws.getCell("A14").value).toBe("STT");
+      expect(ws.getCell("B14").value).toBe("Tên sản phẩm");
+      expect(String(ws.getCell("B10").value)).toContain("Anh Việt");
+      expect(String(ws.getCell("H1").value)).toBe(SAMPLE_EXCEL_ORDER.orderCode);
+      expect(String(ws.getCell("H3").value)).toMatch(/Ngày:\s+\d+\/\d+\/\d+/);
+      expect(String(ws.getCell("B15").value)).toContain("Olympic");
+      expect(ws.getCell("C15").value).toBe(2.96);
+      // Dòng 26 là dòng Tổng loại (11 dòng cắt từ 15..25, dòng 26 là tổng)
+      expect(Number(ws.getCell("H26").value)).toBe(111000);
+      expect(Number(ws.getCell("I26").value)).toBe(4810784);
+      // Dòng 40 là TỔNG CỘNG
+      expect(String(ws.getCell("A40").value)).toContain("TỔNG CỘNG");
+      expect(Number(ws.getCell("I40").value)).toBe(6680844);
+      // Dòng 42 là chữ ký Người mua hàng & Chủ cửa hàng
+      expect(String(ws.getCell("A42").value)).toContain("Người mua hàng");
+      expect(String(ws.getCell("F42").value)).toContain("Chủ cửa hàng");
 
       const fs = await import("fs/promises");
       await fs.unlink(out);
@@ -566,6 +575,45 @@ describe("Tạo Đơn Hàng & Bàn Tính Cắt Tôn - Toàn Bộ Chức Năng & 
       // Tổng kết & Chữ ký
       expect(order.totalAmount).toBe(6680844);
       expect(order.remainingAmount).toBe(4680844);
+    });
+
+    it("Hàm exportRoofingOrderToExcel tự động chèn dòng và đẩy dòng tổng cộng khi đơn hàng > 25 dòng", async () => {
+      const out = "tmp-hoa-don-large-export-test.xlsx";
+      // Tạo đơn hàng có 28 dòng (vượt quá 25 dòng template)
+      const largeOrder: RoofingOrder = {
+        ...SAMPLE_EXCEL_ORDER,
+        orderCode: "HĐ-2026-LARGE",
+        roofingGroups: [
+          {
+            ...SAMPLE_EXCEL_ORDER.roofingGroups[0],
+            items: Array.from({ length: 26 }, (_, i) => ({
+              id: `item-lg-${i}`,
+              length: 2 + i * 0.1,
+              quantity: 1,
+              totalMeters: 2 + i * 0.1,
+            })),
+          },
+        ],
+      };
+
+      await expect(
+        exportRoofingOrderToExcel(largeOrder, out)
+      ).resolves.not.toThrow();
+
+      const ExcelJS = (await import("exceljs")).default;
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.readFile(out);
+      const ws = wb.getWorksheet("HoaDon") || wb.worksheets[0];
+      
+      // 26 dòng cắt + 1 dòng tổng loại + 4 phụ kiện = 31 dòng data
+      // Bắt đầu từ dòng 15, kết thúc ở dòng 15 + 31 - 1 = 45
+      // Dòng TỔNG CỘNG sẽ được đẩy xuống dòng 46
+      expect(ws.getCell("H1").value).toBe("HĐ-2026-LARGE");
+      expect(String(ws.getCell("A46").value)).toContain("TỔNG CỘNG");
+      expect(Number(ws.getCell("I46").value)).toBe(largeOrder.totalAmount);
+
+      const fs = await import("fs/promises");
+      await fs.unlink(out);
     });
   });
 });
