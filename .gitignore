@@ -51,3 +51,5 @@ supabase/.temp/
 test.xlsx
 tests/*.xlsx
 
+.vercel
+.env*
