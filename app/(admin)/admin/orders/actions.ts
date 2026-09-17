@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "@/lib/audit";
 import { RoofingOrder } from "@/types/roofing";
@@ -58,7 +59,7 @@ export async function getRoofingOrderByIdAction(
   id: string
 ): Promise<RoofingOrder | null> {
   try {
-    let supabase: any;
+    let supabase: SupabaseClient;
     try {
       supabase = createAdminClient();
     } catch {
@@ -92,7 +93,7 @@ export async function saveRoofingOrderAction(order: RoofingOrder): Promise<{
   error?: string;
 }> {
   try {
-    let supabase: any;
+    let supabase: SupabaseClient;
     try {
       supabase = createAdminClient();
     } catch {
@@ -342,7 +343,7 @@ export async function updateRoofingOrderStatusAction(
   orderCode: string
 ) {
   try {
-    let supabase: any;
+    let supabase: SupabaseClient;
     try {
       supabase = createAdminClient();
     } catch {
@@ -379,7 +380,7 @@ export async function updateRoofingOrderStatusAction(
 
 export async function deleteRoofingOrderAction(id: string, orderCode: string) {
   try {
-    let supabase: any;
+    let supabase: SupabaseClient;
     try {
       supabase = createAdminClient();
     } catch {

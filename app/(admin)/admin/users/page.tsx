@@ -16,10 +16,12 @@ export default async function UsersPage() {
   const supabase = await createClient();
 
   // Truy vấn trực tiếp từ bảng public.profiles trong Supabase PostgreSQL
-  let { data: profiles, error } = await supabase
+  const { data: initialProfiles, error } = await supabase
     .from("profiles")
     .select("*")
     .order("created_at", { ascending: false });
+
+  let profiles = initialProfiles;
 
   // Nếu client SSR thông thường gặp lỗi hoặc không lấy được dữ liệu, tự động fallback sang Admin Service Role
   if (error || !profiles || profiles.length === 0) {

@@ -191,7 +191,7 @@ export async function getUnitsOfMeasure(forceRefresh = false): Promise<UnitOfMea
       .order("sort_order", { ascending: true })
       .order("name", { ascending: true });
 
-    const timeoutPromise = new Promise<any>((resolve) =>
+    const timeoutPromise = new Promise<{ data: null; error: Error }>((resolve) =>
       setTimeout(() => resolve({ data: null, error: new Error("UOM query timeout") }), 600)
     );
 
