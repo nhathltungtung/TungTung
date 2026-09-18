@@ -203,6 +203,7 @@ export function RoofingOrderForm({
     function handleGlobalKeyDown(e: KeyboardEvent) {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "p") {
         e.preventDefault();
+        toast.dismiss();
         window.print();
       }
     }
@@ -574,8 +575,9 @@ export function RoofingOrderForm({
     }
   };
 
-  // Kích hoạt In
+  // Kích hoạt In (đóng sạch thông báo toast để tránh bị in đè lên giấy)
   const handlePrint = () => {
+    toast.dismiss();
     window.print();
   };
 

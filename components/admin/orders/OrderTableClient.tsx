@@ -441,7 +441,10 @@ export function OrderTableClient({ initialOrders }: OrderTableClientProps) {
               <Button
                 variant="primary"
                 size="sm"
-                onClick={() => window.print()}
+                onClick={() => {
+                  toast.dismiss();
+                  window.print();
+                }}
                 className="flex items-center gap-1.5 bg-[#3c50e0] hover:bg-[#3344bd]"
               >
                 <Printer className="w-4 h-4" /> In Phiếu (A4/A5)
@@ -472,7 +475,10 @@ export function OrderTableClient({ initialOrders }: OrderTableClientProps) {
               <Button
                 variant="primary"
                 size="sm"
-                onClick={() => window.print()}
+                onClick={() => {
+                  toast.dismiss();
+                  window.print();
+                }}
                 className="flex items-center gap-1.5 bg-[#3c50e0] hover:bg-[#3344bd]"
               >
                 <Printer className="w-4 h-4" /> In Danh Sách (A4)

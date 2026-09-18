@@ -76,14 +76,26 @@
     overflow: visible !important;
   }
 
-  /* Hide admin chrome, sidebars, headers, backdrops and buttons */
+  /* Hide admin chrome, sidebars, headers, backdrops, buttons, and toast notifications */
   aside,
   header,
   nav,
   .no-print,
   .print-hidden,
-  .print\:hidden {
+  .print\:hidden,
+  [data-sonner-toaster],
+  [data-sonner-toaster] *,
+  [data-sonner-toast],
+  [data-sonner-toast] *,
+  .toaster,
+  .toast,
+  section[aria-label="Notifications"],
+  section[aria-label="Notifications"] *,
+  [role="region"][aria-label*="Notification" i],
+  [role="status"] {
     display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
   }
 
   /* Force display of invoice and report printable areas */
