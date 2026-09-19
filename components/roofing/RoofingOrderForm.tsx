@@ -13,6 +13,7 @@ import {
   formatCurrency,
   formatNumber,
   numberToVietnameseWords,
+  cleanProductName,
 } from "@/lib/roofing-calc";
 import { useRouter } from "next/navigation";
 import { exportRoofingOrderToExcel } from "@/lib/roofing-excel";
@@ -267,12 +268,10 @@ export function RoofingOrderForm({
     setOrder((prev) => {
       const newGroups = prev.roofingGroups.map((g) => {
         if (g.id !== groupId) return g;
-        const displayName = product.code
-          ? `${product.code} — ${product.name}`
-          : product.name;
+        const cleanName = cleanProductName(product.name) || product.name;
         return calculateRoofingGroup({
           ...g,
-          productName: displayName,
+          productName: cleanName,
           width: product.width,
           unitPrice: product.unitPrice,
         });
@@ -445,9 +444,10 @@ export function RoofingOrderForm({
     setOrder((prev) => {
       const newAccessories = prev.accessories.map((a) => {
         if (a.id !== rowId) return a;
+        const cleanName = cleanProductName(item.name) || item.name;
         return calculateAccessory({
           ...a,
-          name: item.name,
+          name: cleanName,
           unit: normalizedUnit,
           unitPrice: item.unitPrice,
         });
@@ -466,9 +466,10 @@ export function RoofingOrderForm({
   // Thêm phụ kiện từ kho hàng trực tiếp vào đơn hàng (từ modal kho hoặc quick chip)
   const handleAddAccessoryFromWarehouse = (item: AccessoryPreset) => {
     const normalizedUnit = normalizeAccessoryUnit(item.unit);
+    const cleanName = cleanProductName(item.name) || item.name;
     const newAcc = calculateAccessory({
       id: `acc-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-      name: item.name,
+      name: cleanName,
       unit: normalizedUnit,
       quantity: item.defaultQty || 1,
       unitPrice: item.unitPrice,

@@ -2,7 +2,7 @@
 
 import React from "react";
 import { RoofingOrder } from "@/types/roofing";
-import { formatCurrency, formatNumber, numberToVietnameseWords } from "@/lib/roofing-calc";
+import { formatCurrency, formatNumber, numberToVietnameseWords, cleanProductName } from "@/lib/roofing-calc";
 
 interface RoofingInvoicePrintProps {
   order: RoofingOrder;
@@ -146,7 +146,7 @@ export function RoofingInvoicePrint({
                             rowSpan={itemsToRender.length}
                             className="border border-black px-1.5 py-1 font-semibold text-black bg-white align-top"
                           >
-                            {group.productName || "Tôn Lợp"}
+                            {cleanProductName(group.productName) || "Tôn Lợp"}
                           </td>
                         ) : null}
                         <td className="border border-black px-1 py-1 text-right">
@@ -174,7 +174,7 @@ export function RoofingInvoicePrint({
                       {sttCounter++}
                     </td>
                     <td className="border border-black px-1.5 py-1 italic font-bold">
-                      Tổng loại: {group.productName || "Tôn"}
+                      Tổng loại: {cleanProductName(group.productName) || "Tôn"}
                     </td>
                     <td className="border border-black px-1 py-1 text-right text-slate-400">---</td>
                     <td className="border border-black px-1 py-1 text-right font-bold">
@@ -207,7 +207,7 @@ export function RoofingInvoicePrint({
                   {sttCounter++}
                 </td>
                 <td className="border border-black px-1.5 py-1 font-medium text-black">
-                  {acc.name}
+                  {cleanProductName(acc.name)}
                 </td>
                 <td className="border border-black px-1 py-1 text-right">
                   {acc.length ? formatNumber(acc.length, 2) : "---"}

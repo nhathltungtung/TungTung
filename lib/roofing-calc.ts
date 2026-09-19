@@ -102,6 +102,32 @@ export function formatNumber(value: number, maxDecimals: number = 4): string {
 }
 
 /**
+ * Chuẩn hoá tên sản phẩm khi hiển thị / in ấn / xuất Excel:
+ * Loại bỏ mã sản phẩm / mã kho đi kèm phía trước (VD: "OLPXX — Tôn...", "NOC600O — Nóc 600", "[H132614] 13x26...", "OLP1LD - Tôn...")
+ * Chỉ hiển thị tên sản phẩm thuần túy không chứa mã theo đúng yêu cầu nghiệp vụ.
+ */
+export function cleanProductName(rawName?: string): string {
+  if (!rawName) return "";
+  let name = String(rawName).trim();
+
+  // 1. Loại bỏ các tiền tố trong ngoặc vuông hoặc ngoặc tròn: "[OLPXX] Tôn...", "(H132614) 13x26..."
+  name = name.replace(/^\[[a-zA-Z0-9._-]+\]\s*/g, "");
+  name = name.replace(/^\([a-zA-Z0-9._-]+\)\s*/g, "");
+
+  // 2. Loại bỏ các tiền tố mã hàng kèm dấu phân cách: "MÃ — Tên", "MÃ – Tên", "MÃ - Tên", "MÃ: Tên"
+  // Lặp để xử lý trường hợp mã bị ghép nhiều lần (VD: "OLPX3DTON040 — OLPX3D — Tôn...")
+  const codePrefixRegex = /^([a-zA-Z0-9._-]{2,30})\s*(?:—|–|-|:)\s+(.+)$/;
+  let match = name.match(codePrefixRegex);
+  while (match && match[2]?.trim()) {
+    name = match[2].trim();
+    name = name.replace(/^\[[a-zA-Z0-9._-]+\]\s*/g, "");
+    match = name.match(codePrefixRegex);
+  }
+
+  return name;
+}
+
+/**
  * Chuyển đổi số tiền thành chữ Tiếng Việt (Dùng cho hoá đơn)
  */
 export function numberToVietnameseWords(n: number): string {

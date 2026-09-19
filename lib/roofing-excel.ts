@@ -1,5 +1,6 @@
 import type ExcelJS from "exceljs";
 import { RoofingOrder } from "@/types/roofing";
+import { cleanProductName } from "@/lib/roofing-calc";
 
 /** Giữ helper cũ (một số test/util vẫn dùng tỷ lệ nghìn đồng) */
 export function toExcelThousand(vnd: number): number {
@@ -45,7 +46,7 @@ export function buildRoofingExcelDataRows(order: RoofingOrder): RoofingExcelData
     items.forEach((item, index) => {
       rows.push({
         stt: stt++,
-        name: index === 0 ? group.productName || "" : "",
+        name: index === 0 ? cleanProductName(group.productName) || "" : "",
         length: Number(item.length) || 0,
         pieces: Number(item.quantity) || 0,
         meters: Number(item.totalMeters) || 0,
@@ -79,7 +80,7 @@ export function buildRoofingExcelDataRows(order: RoofingOrder): RoofingExcelData
 
     rows.push({
       stt: stt++,
-      name: acc.name.trim(),
+      name: cleanProductName(acc.name).trim(),
       length: hasLength ? Number(acc.length) : null,
       pieces: hasPieces ? Number(acc.pieces) : null,
       meters: Number(acc.quantity) || 0,

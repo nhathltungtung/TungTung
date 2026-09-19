@@ -6,6 +6,7 @@ import {
   CustomerPreset,
   normalizeAccessoryUnit,
 } from "@/lib/catalogs";
+import { cleanProductName } from "@/lib/roofing-calc";
 import {
   DbOrderRow,
   mapDbOrderToRoofingOrder,
@@ -385,7 +386,7 @@ export async function getRoofingProducts(): Promise<RoofingProductPreset[]> {
       dbProducts.push({
         id: item.id || code,
         code: code || item.id,
-        name,
+        name: cleanProductName(name) || name,
         brand,
         type,
         thickness,
@@ -473,7 +474,7 @@ export async function getWarehouseAccessories(): Promise<AccessoryPreset[]> {
       dbAccessories.push({
         id: item.id || code || `inv-${Date.now()}`,
         code: code || undefined,
-        name,
+        name: cleanProductName(name) || name,
         unit: normalizeAccessoryUnit(item.unit || "Cây"),
         unitPrice: Number(item.selling_price) || 0,
         category: item.category || "phu_kien",
@@ -497,7 +498,7 @@ export async function getWarehouseAccessories(): Promise<AccessoryPreset[]> {
       dbAccessories.push({
         id: prod.id || code || `prod-${Date.now()}`,
         code: code || undefined,
-        name,
+        name: cleanProductName(name) || name,
         unit: normalizeAccessoryUnit(prod.unit || "Cây"),
         unitPrice: Number(prod.unit_price) || 0,
         category: "phu_kien",
