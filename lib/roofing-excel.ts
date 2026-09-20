@@ -352,3 +352,393 @@ export async function exportRoofingOrderToExcel(
   const fs = await import("fs/promises");
   await fs.writeFile(exportName, Buffer.from(outBuffer));
 }
+
+/**
+ * Helper format ngày sang DD/MM/YYYY
+ */
+function formatVietnameseDate(isoDate?: string): string {
+  if (!isoDate) return "";
+  const d = new Date(isoDate);
+  if (Number.isNaN(d.getTime())) {
+    // Có thể là chuỗi DD/MM/YYYY sẵn
+    if (isoDate.includes("/")) return isoDate;
+    return isoDate;
+  }
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const year = d.getFullYear();
+  return `${day}/${month}/${year}`;
+}
+
+/**
+ * Helper nhãn trạng thái tiếng Việt khớp giao diện
+ */
+function getOrderStatusVietnamese(status?: string): string {
+  switch (status) {
+    case "completed":
+      return "Hoàn Tất";
+    case "cutting":
+      return "Đang Cán Tôn";
+    case "cancelled":
+      return "Đã Huỷ";
+    case "pending":
+    default:
+      return "Chờ Cắt";
+  }
+}
+
+/**
+ * Xuất Danh Sách Đơn Hàng Cắt Tôn ra file Excel (.xlsx)
+ * Định dạng thẩm mỹ chuyên nghiệp, các cột và số liệu khớp 100% như bảng giao diện web.
+ */
+export async function exportRoofingOrdersListToExcel(
+  orders: RoofingOrder[],
+  fileName?: string
+): Promise<void> {
+  const ExcelJS = (await import("exceljs")).default;
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = "TungTung ERP - Đại Lý Tuấn Hương";
+  workbook.created = new Date();
+
+  const worksheet = workbook.addWorksheet("Danh Sách Đơn Hàng", {
+    views: [{ showGridLines: true }],
+  });
+
+  // Độ rộng các cột chuẩn hóa khớp 100% giao diện
+  worksheet.columns = [
+    { key: "stt", width: 7 },              // A: STT
+    { key: "orderCode", width: 17 },        // B: Mã Đơn Hàng
+    { key: "orderDate", width: 14 },        // C: Ngày Tạo
+    { key: "customerName", width: 28 },     // D: Khách Hàng / Công Trình
+    { key: "customerPhone", width: 16 },    // E: Số Điện Thoại
+    { key: "customerAddress", width: 32 },  // F: Địa Chỉ
+    { key: "totalAmount", width: 20 },      // G: Tổng Tiền (đ)
+    { key: "deposit", width: 18 },          // H: Đã Cọc / Trả (đ)
+    { key: "remainingAmount", width: 20 },  // I: Còn Phải Thu (đ)
+    { key: "status", width: 16 },           // J: Trạng Thái
+    { key: "note", width: 26 },             // K: Ghi Chú
+  ];
+
+  // 1. Header Đại Lý
+  worksheet.mergeCells("A1:K1");
+  const headerShop = worksheet.getCell("A1");
+  headerShop.value = "ĐẠI LÝ TÔN THÉP TUẤN HƯƠNG";
+  headerShop.font = { name: "Times New Roman", size: 13, bold: true, color: { argb: "FF1E3A8A" } };
+  headerShop.alignment = { vertical: "middle" };
+
+  worksheet.mergeCells("A2:K2");
+  const subHeader = worksheet.getCell("A2");
+  subHeader.value = "Địa chỉ: Mặt Đường QL 39A, Trương Xá – Toàn Thắng, Kim Động, Hưng Yên  |  Hotline/Zalo: 0373.208.038 – 0989.734.768";
+  subHeader.font = { name: "Times New Roman", size: 10, italic: true, color: { argb: "FF4B5563" } };
+  subHeader.alignment = { vertical: "middle" };
+
+  // 2. Tiêu đề Báo Cáo
+  worksheet.mergeCells("A4:K4");
+  const titleCell = worksheet.getCell("A4");
+  titleCell.value = "BÁO CÁO DANH SÁCH ĐƠN HÀNG CẮT TÔN & TÌNH HÌNH THANH TOÁN";
+  titleCell.font = { name: "Times New Roman", size: 15, bold: true, color: { argb: "FF0F172A" } };
+  titleCell.alignment = { horizontal: "center", vertical: "middle" };
+  worksheet.getRow(4).height = 28;
+
+  worksheet.mergeCells("A5:K5");
+  const dateCell = worksheet.getCell("A5");
+  const now = new Date();
+  const dateStr = `${String(now.getDate()).padStart(2, "0")}/${String(now.getMonth() + 1).padStart(2, "0")}/${now.getFullYear()}`;
+  dateCell.value = `Ngày xuất: ${dateStr}  •  Tổng cộng: ${orders.length} đơn hàng`;
+  dateCell.font = { name: "Times New Roman", size: 10, italic: true, color: { argb: "FF64748B" } };
+  dateCell.alignment = { horizontal: "center", vertical: "middle" };
+
+  // 3. Khối Tóm Tắt Nhanh (Thống Kê Kế Toán)
+  const sumTotal = orders.reduce((acc, o) => acc + (Number(o.totalAmount) || 0), 0);
+  const sumDeposit = orders.reduce((acc, o) => acc + (Number(o.deposit) || 0), 0);
+  const sumRemaining = orders.reduce((acc, o) => acc + (Number(o.remainingAmount) || 0), 0);
+
+  const summaryRow = worksheet.getRow(7);
+  summaryRow.height = 24;
+
+  worksheet.mergeCells("B7:C7");
+  worksheet.getCell("B7").value = "Tổng Doanh Thu:";
+  worksheet.getCell("B7").font = { name: "Times New Roman", size: 11, bold: true };
+  worksheet.getCell("B7").alignment = { horizontal: "right", vertical: "middle" };
+  worksheet.getCell("D7").value = sumTotal;
+  worksheet.getCell("D7").numFmt = "#,##0";
+  worksheet.getCell("D7").font = { name: "Times New Roman", size: 11, bold: true, color: { argb: "FF1E3A8A" } };
+  worksheet.getCell("D7").alignment = { horizontal: "right", vertical: "middle" };
+
+  worksheet.mergeCells("E7:F7");
+  worksheet.getCell("E7").value = "Đã Cọc / Thu:";
+  worksheet.getCell("E7").font = { name: "Times New Roman", size: 11, bold: true };
+  worksheet.getCell("E7").alignment = { horizontal: "right", vertical: "middle" };
+  worksheet.getCell("G7").value = sumDeposit;
+  worksheet.getCell("G7").numFmt = "#,##0";
+  worksheet.getCell("G7").font = { name: "Times New Roman", size: 11, bold: true, color: { argb: "FF047857" } };
+  worksheet.getCell("G7").alignment = { horizontal: "right", vertical: "middle" };
+
+  worksheet.mergeCells("H7:I7");
+  worksheet.getCell("H7").value = "Còn Phải Thu:";
+  worksheet.getCell("H7").font = { name: "Times New Roman", size: 11, bold: true };
+  worksheet.getCell("H7").alignment = { horizontal: "right", vertical: "middle" };
+  worksheet.getCell("J7").value = sumRemaining;
+  worksheet.getCell("J7").numFmt = "#,##0";
+  worksheet.getCell("J7").font = { name: "Times New Roman", size: 11, bold: true, color: { argb: "FFB91C1C" } };
+  worksheet.getCell("J7").alignment = { horizontal: "right", vertical: "middle" };
+
+  // Khung viền mỏng cho khối thống kê
+  for (let c = 2; c <= 10; c++) {
+    worksheet.getRow(7).getCell(c).fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FFF8FAFC" },
+    };
+    worksheet.getRow(7).getCell(c).border = {
+      top: { style: "thin", color: { argb: "FFE2E8F0" } },
+      bottom: { style: "thin", color: { argb: "FFE2E8F0" } },
+      left: { style: "thin", color: { argb: "FFE2E8F0" } },
+      right: { style: "thin", color: { argb: "FFE2E8F0" } },
+    };
+  }
+
+  // 4. Tiêu đề các Cột (Header Row) tại dòng 9
+  const tableHeaderRow = worksheet.getRow(9);
+  tableHeaderRow.height = 26;
+  const headers = [
+    "STT",
+    "Mã Đơn Hàng",
+    "Ngày Tạo",
+    "Khách Hàng / Công Trình",
+    "Số Điện Thoại",
+    "Địa Chỉ",
+    "Tổng Tiền (đ)",
+    "Đã Cọc / Trả (đ)",
+    "Còn Phải Thu (đ)",
+    "Trạng Thái",
+    "Ghi Chú",
+  ];
+
+  headers.forEach((title, idx) => {
+    const cell = tableHeaderRow.getCell(idx + 1);
+    cell.value = title;
+    cell.font = { name: "Times New Roman", size: 11, bold: true, color: { argb: "FFFFFFFF" } };
+    cell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FF3C50E0" }, // Màu xanh thương hiệu TailAdmin
+    };
+    cell.alignment = {
+      horizontal: idx === 0 || idx === 1 || idx === 2 || idx === 4 || idx === 9 ? "center" : idx === 6 || idx === 7 || idx === 8 ? "right" : "left",
+      vertical: "middle",
+      wrapText: true,
+    };
+    cell.border = {
+      top: { style: "medium", color: { argb: "FF1E293B" } },
+      bottom: { style: "medium", color: { argb: "FF1E293B" } },
+      left: { style: "thin", color: { argb: "FF94A3B8" } },
+      right: { style: "thin", color: { argb: "FF94A3B8" } },
+    };
+  });
+
+  // 5. Điền từng dòng dữ liệu (bắt đầu từ dòng 10)
+  const START_ROW = 10;
+  orders.forEach((order, index) => {
+    const rIdx = START_ROW + index;
+    const row = worksheet.getRow(rIdx);
+    row.height = 22;
+
+    const isEven = index % 2 === 1;
+    const rowBgColor = isEven ? "FFF8FAFC" : "FFFFFFFF";
+
+    const totalAmt = Number(order.totalAmount) || 0;
+    const depAmt = Number(order.deposit) || 0;
+    const remAmt = Number(order.remainingAmount) || 0;
+
+    // Cột 1: STT
+    const cellA = row.getCell(1);
+    cellA.value = index + 1;
+    cellA.alignment = { horizontal: "center", vertical: "middle" };
+
+    // Cột 2: Mã đơn hàng
+    const cellB = row.getCell(2);
+    cellB.value = order.orderCode;
+    cellB.font = { name: "Times New Roman", size: 11, bold: true, color: { argb: "FF0F172A" } };
+    cellB.alignment = { horizontal: "center", vertical: "middle" };
+
+    // Cột 3: Ngày tạo
+    const cellC = row.getCell(3);
+    cellC.value = formatVietnameseDate(order.createdAt);
+    cellC.alignment = { horizontal: "center", vertical: "middle" };
+
+    // Cột 4: Khách hàng
+    const cellD = row.getCell(4);
+    cellD.value = order.customer?.name || "Khách lẻ";
+    cellD.font = { name: "Times New Roman", size: 11, bold: true };
+    cellD.alignment = { horizontal: "left", vertical: "middle" };
+
+    // Cột 5: SĐT
+    const cellE = row.getCell(5);
+    cellE.value = order.customer?.phone || "—";
+    cellE.numFmt = "@";
+    cellE.alignment = { horizontal: "center", vertical: "middle" };
+
+    // Cột 6: Địa chỉ
+    const cellF = row.getCell(6);
+    cellF.value = order.customer?.address || "—";
+    cellF.alignment = { horizontal: "left", vertical: "middle" };
+
+    // Cột 7: Tổng tiền
+    const cellG = row.getCell(7);
+    cellG.value = totalAmt;
+    cellG.numFmt = "#,##0";
+    cellG.font = { name: "Times New Roman", size: 11, bold: true };
+    cellG.alignment = { horizontal: "right", vertical: "middle" };
+
+    // Cột 8: Đã cọc/trả
+    const cellH = row.getCell(8);
+    cellH.value = depAmt;
+    cellH.numFmt = "#,##0";
+    cellH.font = { name: "Times New Roman", size: 11, color: { argb: "FF047857" } };
+    cellH.alignment = { horizontal: "right", vertical: "middle" };
+
+    // Cột 9: Còn phải thu
+    const cellI = row.getCell(9);
+    cellI.value = remAmt;
+    cellI.numFmt = "#,##0";
+    cellI.font = {
+      name: "Times New Roman",
+      size: 11,
+      bold: remAmt > 0,
+      color: remAmt > 0 ? { argb: "FFB91C1C" } : { argb: "FF047857" },
+    };
+    cellI.alignment = { horizontal: "right", vertical: "middle" };
+
+    // Cột 10: Trạng thái
+    const cellJ = row.getCell(10);
+    cellJ.value = getOrderStatusVietnamese(order.status);
+    cellJ.alignment = { horizontal: "center", vertical: "middle" };
+    if (order.status === "completed") {
+      cellJ.font = { name: "Times New Roman", size: 11, color: { argb: "FF047857" }, bold: true };
+    } else if (order.status === "cutting") {
+      cellJ.font = { name: "Times New Roman", size: 11, color: { argb: "FF1D4ED8" }, bold: true };
+    } else if (order.status === "cancelled") {
+      cellJ.font = { name: "Times New Roman", size: 11, color: { argb: "FFE11D48" }, bold: true };
+    } else {
+      cellJ.font = { name: "Times New Roman", size: 11, color: { argb: "FFD97706" }, bold: true };
+    }
+
+    // Cột 11: Ghi chú
+    const cellK = row.getCell(11);
+    cellK.value = order.customer?.note || "";
+    cellK.alignment = { horizontal: "left", vertical: "middle" };
+
+    // Gán border và màu nền cho từng ô
+    for (let c = 1; c <= 11; c++) {
+      const cell = row.getCell(c);
+      if (!cell.font) cell.font = { name: "Times New Roman", size: 11 };
+      cell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: rowBgColor },
+      };
+      cell.border = {
+        top: { style: "thin", color: { argb: "FFE2E8F0" } },
+        bottom: { style: "thin", color: { argb: "FFE2E8F0" } },
+        left: { style: "thin", color: { argb: "FFE2E8F0" } },
+        right: { style: "thin", color: { argb: "FFE2E8F0" } },
+      };
+    }
+  });
+
+  // 6. Dòng Tổng Kết Cuối Bảng
+  const endRowIdx = START_ROW + orders.length;
+  const totalRow = worksheet.getRow(endRowIdx);
+  totalRow.height = 26;
+
+  worksheet.mergeCells(`A${endRowIdx}:F${endRowIdx}`);
+  const totalLabelCell = worksheet.getCell(`A${endRowIdx}`);
+  totalLabelCell.value = `TỔNG CỘNG TOÀN BỘ (${orders.length} ĐƠN)`;
+  totalLabelCell.font = { name: "Times New Roman", size: 11, bold: true, color: { argb: "FF0F172A" } };
+  totalLabelCell.alignment = { horizontal: "right", vertical: "middle" };
+
+  const cellTotG = totalRow.getCell(7);
+  cellTotG.value = sumTotal;
+  cellTotG.numFmt = "#,##0";
+  cellTotG.font = { name: "Times New Roman", size: 12, bold: true };
+  cellTotG.alignment = { horizontal: "right", vertical: "middle" };
+
+  const cellTotH = totalRow.getCell(8);
+  cellTotH.value = sumDeposit;
+  cellTotH.numFmt = "#,##0";
+  cellTotH.font = { name: "Times New Roman", size: 12, bold: true, color: { argb: "FF047857" } };
+  cellTotH.alignment = { horizontal: "right", vertical: "middle" };
+
+  const cellTotI = totalRow.getCell(9);
+  cellTotI.value = sumRemaining;
+  cellTotI.numFmt = "#,##0";
+  cellTotI.font = { name: "Times New Roman", size: 12, bold: true, color: { argb: "FFB91C1C" } };
+  cellTotI.alignment = { horizontal: "right", vertical: "middle" };
+
+  for (let c = 1; c <= 11; c++) {
+    const cell = totalRow.getCell(c);
+    cell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FFF1F5F9" },
+    };
+    cell.border = {
+      top: { style: "thin", color: { argb: "FF0F172A" } },
+      bottom: { style: "double", color: { argb: "FF0F172A" } }, // Viền đôi kế toán
+      left: { style: "thin", color: { argb: "FFE2E8F0" } },
+      right: { style: "thin", color: { argb: "FFE2E8F0" } },
+    };
+  }
+
+  // 7. Khối Chữ Ký
+  const sigRowIdx = endRowIdx + 2;
+  worksheet.mergeCells(`B${sigRowIdx}:D${sigRowIdx}`);
+  const sigLeft = worksheet.getCell(`B${sigRowIdx}`);
+  sigLeft.value = "NGƯỜI LẬP BÁO CÁO";
+  sigLeft.font = { name: "Times New Roman", size: 11, bold: true };
+  sigLeft.alignment = { horizontal: "center", vertical: "middle" };
+
+  worksheet.mergeCells(`G${sigRowIdx}:J${sigRowIdx}`);
+  const sigRight = worksheet.getCell(`G${sigRowIdx}`);
+  sigRight.value = "CHỦ CƠ SỞ / ĐẠI LÝ";
+  sigRight.font = { name: "Times New Roman", size: 11, bold: true };
+  sigRight.alignment = { horizontal: "center", vertical: "middle" };
+
+  const sigSubIdx = sigRowIdx + 1;
+  worksheet.mergeCells(`B${sigSubIdx}:D${sigSubIdx}`);
+  const sigLeftSub = worksheet.getCell(`B${sigSubIdx}`);
+  sigLeftSub.value = "(Ký, ghi rõ họ tên)";
+  sigLeftSub.font = { name: "Times New Roman", size: 10, italic: true };
+  sigLeftSub.alignment = { horizontal: "center", vertical: "middle" };
+
+  worksheet.mergeCells(`G${sigSubIdx}:J${sigSubIdx}`);
+  const sigRightSub = worksheet.getCell(`G${sigSubIdx}`);
+  sigRightSub.value = "(Ký, đóng dấu)";
+  sigRightSub.font = { name: "Times New Roman", size: 10, italic: true };
+  sigRightSub.alignment = { horizontal: "center", vertical: "middle" };
+
+  const exportName =
+    fileName ||
+    `Danh_Sach_Don_Hang_Cat_Ton_${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}.xlsx`;
+
+  const outBuffer = await workbook.xlsx.writeBuffer();
+
+  if (typeof window !== "undefined") {
+    const blob = new Blob([outBuffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = exportName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    return;
+  }
+
+  const fs = await import("fs/promises");
+  await fs.writeFile(exportName, Buffer.from(outBuffer));
+}

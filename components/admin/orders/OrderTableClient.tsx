@@ -10,7 +10,10 @@ import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/form/Button";
 import { RoofingOrder } from "@/types/roofing";
 import { formatCurrency } from "@/lib/roofing-calc";
-import { exportRoofingOrderToExcel } from "@/lib/roofing-excel";
+import {
+  exportRoofingOrderToExcel,
+  exportRoofingOrdersListToExcel,
+} from "@/lib/roofing-excel";
 import { RoofingInvoicePrint } from "@/components/roofing/RoofingInvoicePrint";
 import { OrderListPrint } from "./OrderListPrint";
 import {
@@ -32,7 +35,10 @@ import {
 import { toast } from "sonner";
 
 import { useRouter } from "next/navigation";
-import { getFromLocalStorage } from "@/lib/supabase/roofing-service";
+import {
+  getFromLocalStorage,
+  deleteFromLocalStorage,
+} from "@/lib/supabase/roofing-service";
 import { saveRoofingOrderAction } from "@/app/(admin)/admin/orders/actions";
 import { RotateCw } from "lucide-react";
 
@@ -45,6 +51,7 @@ export function OrderTableClient({ initialOrders }: OrderTableClientProps) {
   const [orders, setOrders] = useState<RoofingOrder[]>(initialOrders);
   const [selectedOrder, setSelectedOrder] = useState<RoofingOrder | null>(null);
   const [isPrintingList, setIsPrintingList] = useState(false);
+  const [isExportingList, setIsExportingList] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [deleteDialog, setDeleteDialog] = useState<{
     isOpen: boolean;
@@ -76,6 +83,8 @@ export function OrderTableClient({ initialOrders }: OrderTableClientProps) {
               saveRoofingOrderAction(offOrder)
                 .then((res) => {
                   if (res.success) {
+                    // Dọn dẹp khỏi LocalStorage sau khi đã đồng bộ an toàn lên Cloud
+                    deleteFromLocalStorage(offOrder.orderCode, offOrder.id);
                     toast.success(`Đã tự động đồng bộ đơn ${offOrder.orderCode} từ thiết bị lên CSDL!`);
                   }
                 })
@@ -98,6 +107,35 @@ export function OrderTableClient({ initialOrders }: OrderTableClientProps) {
       setIsRefreshing(false);
       toast.success("Đã làm mới danh sách đơn hàng!");
     }, 600);
+  };
+
+  // Xuất file Excel danh sách toàn bộ hoặc các đơn được lọc/chọn
+  const handleExportListExcel = async (ordersToExport?: RoofingOrder[]) => {
+    const targetOrders =
+      ordersToExport && ordersToExport.length > 0 ? ordersToExport : orders;
+
+    if (!targetOrders || targetOrders.length === 0) {
+      toast.warning("Không có đơn hàng nào để xuất Excel.");
+      return;
+    }
+
+    setIsExportingList(true);
+    try {
+      const now = new Date();
+      const datePart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+      await exportRoofingOrdersListToExcel(
+        targetOrders,
+        `Danh_Sach_Don_Hang_Cat_Ton_${datePart}.xlsx`
+      );
+      toast.success(
+        `Đã xuất thành công ${targetOrders.length} đơn hàng ra file Excel!`
+      );
+    } catch (err) {
+      console.error("Lỗi xuất danh sách Excel:", err);
+      toast.error("Có lỗi xảy ra khi xuất file Excel danh sách.");
+    } finally {
+      setIsExportingList(false);
+    }
   };
 
   const handleExportExcel = async (order: RoofingOrder) => {
@@ -142,10 +180,16 @@ export function OrderTableClient({ initialOrders }: OrderTableClientProps) {
     const targetOrder = deleteDialog.order;
     setIsDeleting(true);
 
-    // Cập nhật ngay trên giao diện để tránh kẹt
+    // 1. Cập nhật ngay trên giao diện để tránh kẹt và phản hồi tức thì
     setOrders((prev) =>
-      prev.filter((o) => o.id !== targetOrder.id && o.orderCode !== targetOrder.orderCode)
+      prev.filter(
+        (o) =>
+          o.id !== targetOrder.id && o.orderCode !== targetOrder.orderCode
+      )
     );
+
+    // 2. Xóa triệt để khỏi LocalStorage và ghi vào danh sách Tombstone đã xoá
+    deleteFromLocalStorage(targetOrder.orderCode, targetOrder.id);
 
     try {
       const res = await deleteRoofingOrderAction(
@@ -158,6 +202,7 @@ export function OrderTableClient({ initialOrders }: OrderTableClientProps) {
       }
       toast.success(`Đã xoá đơn ${targetOrder.orderCode} thành công!`);
       setDeleteDialog({ isOpen: false, order: null });
+      router.refresh();
     } catch {
       toast.error("Có lỗi xảy ra khi xoá đơn.");
     } finally {
@@ -378,6 +423,22 @@ export function OrderTableClient({ initialOrders }: OrderTableClientProps) {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {/* Nút Xuất Excel Danh Sách Đơn Hàng */}
+            <button
+              type="button"
+              onClick={() => handleExportListExcel()}
+              disabled={isExportingList || orders.length === 0}
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-emerald-800 dark:text-emerald-300 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 border border-emerald-300 dark:border-emerald-800/60 rounded-lg transition-colors cursor-pointer disabled:opacity-50 shadow-2xs"
+              title="Xuất file Excel danh sách đơn hàng định dạng chuẩn A4 ngang"
+            >
+              <FileSpreadsheet
+                className={`w-3.5 h-3.5 text-emerald-600 ${
+                  isExportingList ? "animate-pulse" : ""
+                }`}
+              />
+              {isExportingList ? "Đang xuất..." : "Xuất Excel Danh Sách"}
+            </button>
+
             {/* Nút In Danh Sách Đơn Hàng */}
             <button
               type="button"
@@ -418,6 +479,8 @@ export function OrderTableClient({ initialOrders }: OrderTableClientProps) {
             data={orders}
             searchKey="orderCode"
             searchPlaceholder="Tìm kiếm theo mã đơn (HĐ-...) hoặc tên khách..."
+            exportFileName="Danh_Sach_Don_Hang_Cat_Ton"
+            onExportExcel={handleExportListExcel}
           />
         </div>
       </div>

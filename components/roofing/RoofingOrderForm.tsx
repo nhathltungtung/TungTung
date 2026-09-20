@@ -23,6 +23,7 @@ import {
   getWarehouseAccessories,
   getCustomersDirectory,
   saveToLocalStorage,
+  deleteFromLocalStorage,
 } from "@/lib/supabase/roofing-service";
 import { saveRoofingOrderAction } from "@/app/(admin)/admin/orders/actions";
 import { RoofingInvoicePrint } from "./RoofingInvoicePrint";
@@ -544,7 +545,8 @@ export function RoofingOrderForm({
       // 1. Thử lưu qua Server Action (Server-side execution với Service Role fallback)
       const res = await saveRoofingOrderAction(order);
       if (res.success) {
-        saveToLocalStorage(order);
+        // Đã lưu an toàn lên Cloud: xóa khỏi hàng đợi ngoại tuyến LocalStorage
+        deleteFromLocalStorage(order.orderCode, order.id);
         toast.success(
           res.message ||
             (isEdit
@@ -559,6 +561,7 @@ export function RoofingOrderForm({
       // 2. Fallback nếu Server Action báo lỗi
       const clientRes = await saveRoofingOrder(order);
       if (clientRes.success) {
+        deleteFromLocalStorage(order.orderCode, order.id);
         toast.success(clientRes.message);
         router.push("/admin/orders");
         router.refresh();

@@ -58,6 +58,7 @@ export interface DataTableProps<TData, TValue> {
   batchActions?: (selectedRows: TData[], resetSelection: () => void) => React.ReactNode;
   exportFileName?: string;
   enableExport?: boolean;
+  onExportExcel?: (data: TData[]) => void | Promise<void>;
   onRowClick?: (row: TData) => void;
   isLoading?: boolean;
   stickyHeader?: boolean;
@@ -108,6 +109,7 @@ export function DataTable<TData, TValue>({
   batchActions,
   exportFileName = "export_data",
   enableExport = true,
+  onExportExcel,
   onRowClick,
   isLoading = false,
   stickyHeader = true,
@@ -300,7 +302,19 @@ export function DataTable<TData, TValue>({
 
   // Handle Export
   const handleExportExcel = async () => {
-    const exportData = selectedRows.length > 0 ? selectedRows : data;
+    const filteredRows = table.getFilteredRowModel().rows.map((r) => r.original);
+    const exportData =
+      selectedRows.length > 0
+        ? selectedRows
+        : filteredRows.length > 0
+        ? filteredRows
+        : data;
+
+    if (onExportExcel) {
+      await onExportExcel(exportData);
+      return;
+    }
+
     await exportToExcel(exportData as Record<string, unknown>[], exportFileName);
   };
 

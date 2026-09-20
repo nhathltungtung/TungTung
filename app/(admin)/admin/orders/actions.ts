@@ -387,20 +387,64 @@ export async function deleteRoofingOrderAction(id: string, orderCode: string) {
       supabase = await createClient();
     }
 
-    const { error } = await supabase
-      .from("roofing_orders")
-      .delete()
-      .eq("id", id);
+    const cleanId = (id || "").trim();
+    const cleanCode = (orderCode || "").trim();
 
+    // 1. Tìm bản ghi đơn hàng để lấy ID thực tế nếu id truyền vào chưa chuẩn
+    let realId = cleanId;
+    if (!realId && cleanCode) {
+      const { data: found } = await supabase
+        .from("roofing_orders")
+        .select("id")
+        .eq("order_code", cleanCode)
+        .maybeSingle();
+      if (found?.id) realId = found.id;
+    }
+
+    // 2. Dọn dẹp an toàn các bảng phụ trợ nếu có realId
+    if (realId) {
+      try {
+        await supabase.from("roofing_order_accessories").delete().eq("order_id", realId);
+        const { data: groups } = await supabase.from("roofing_order_groups").select("id").eq("order_id", realId);
+        if (groups && groups.length > 0) {
+          const groupIds = groups.map((g) => g.id);
+          await supabase.from("roofing_order_cut_items").delete().in("group_id", groupIds);
+          await supabase.from("roofing_order_groups").delete().eq("order_id", realId);
+        }
+      } catch (childErr) {
+        console.warn("deleteRoofingOrderAction: child cleanup warning:", childErr);
+      }
+    }
+
+    // 3. Thực hiện xóa triệt để bảng roofing_orders theo cả realId và cleanCode
+    let deleteQuery = supabase.from("roofing_orders").delete();
+    if (realId && cleanCode) {
+      deleteQuery = deleteQuery.or(`id.eq.${realId},order_code.eq.${cleanCode}`);
+    } else if (realId) {
+      deleteQuery = deleteQuery.eq("id", realId);
+    } else if (cleanCode) {
+      deleteQuery = deleteQuery.eq("order_code", cleanCode);
+    }
+
+    const { error } = await deleteQuery;
     if (error) {
-      return { success: false, error: error.message };
+      // Thử fallback xóa trực tiếp theo order_code
+      if (cleanCode) {
+        const { error: errCode } = await supabase
+          .from("roofing_orders")
+          .delete()
+          .eq("order_code", cleanCode);
+        if (errCode) return { success: false, error: errCode.message };
+      } else {
+        return { success: false, error: error.message };
+      }
     }
 
     await logActivity({
       action: "ROOFING_ORDER_DELETED",
       level: "WARNING",
-      resource: `Đơn hàng ${orderCode}`,
-      metadata: { id, orderCode },
+      resource: `Đơn hàng ${cleanCode || cleanId}`,
+      metadata: { id: realId || cleanId, orderCode: cleanCode },
     });
 
     revalidatePath("/admin/orders");

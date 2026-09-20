@@ -14,7 +14,8 @@ import {
 
 export { mapDbOrderToRoofingOrder } from "@/lib/roofing-order-mapper";
 
-const LOCAL_STORAGE_KEY = "roofing_orders";
+export const LOCAL_STORAGE_KEY = "roofing_orders";
+export const DELETED_ORDERS_KEY = "roofing_orders_deleted_codes";
 const SAMPLE_ORDER_CODE = "HĐ-2026-0832";
 
 const ROOFING_ORDER_SELECT = `
@@ -515,11 +516,21 @@ export async function getWarehouseAccessories(): Promise<AccessoryPreset[]> {
   }
 }
 
-/** Lưu LocalStorage — loại bỏ đơn mẫu giả */
+/** Lưu LocalStorage — loại bỏ đơn mẫu giả và gỡ khỏi danh sách đã xóa nếu tạo lại */
 export function saveToLocalStorage(order: RoofingOrder) {
   if (typeof window === "undefined") return;
   if (isSampleOrder(order)) return;
   try {
+    if (order.orderCode) {
+      const deletedCodes = JSON.parse(
+        localStorage.getItem(DELETED_ORDERS_KEY) || "[]"
+      ) as string[];
+      const filteredCodes = deletedCodes.filter((c) => c !== order.orderCode);
+      if (filteredCodes.length !== deletedCodes.length) {
+        localStorage.setItem(DELETED_ORDERS_KEY, JSON.stringify(filteredCodes));
+      }
+    }
+
     const stored = JSON.parse(
       localStorage.getItem(LOCAL_STORAGE_KEY) || "[]"
     ) as RoofingOrder[];
@@ -533,14 +544,60 @@ export function saveToLocalStorage(order: RoofingOrder) {
   }
 }
 
-/** Đọc offline orders thật (không trả đơn mẫu) */
+/**
+ * Xóa đơn khỏi bộ nhớ LocalStorage và ghi nhận vào danh sách Tombstone (DELETED_ORDERS_KEY)
+ * Ngăn chặn hoàn toàn hiện tượng đơn bị hồi sinh tự động khi F5 hoặc offline sync
+ */
+export function deleteFromLocalStorage(orderCode: string, id?: string) {
+  if (typeof window === "undefined") return;
+  try {
+    const targetCode = (orderCode || "").trim();
+    const targetId = (id || "").trim();
+
+    // 1. Loại bỏ khỏi mảng roofing_orders
+    const stored = JSON.parse(
+      localStorage.getItem(LOCAL_STORAGE_KEY) || "[]"
+    ) as RoofingOrder[];
+    const filtered = stored.filter((o) => {
+      if (targetCode && o.orderCode === targetCode) return false;
+      if (targetId && o.id === targetId) return false;
+      return true;
+    });
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(filtered));
+
+    // 2. Lưu vào danh sách Tombstone đã xoá
+    if (targetCode) {
+      const deletedCodes = JSON.parse(
+        localStorage.getItem(DELETED_ORDERS_KEY) || "[]"
+      ) as string[];
+      if (!deletedCodes.includes(targetCode)) {
+        deletedCodes.push(targetCode);
+        localStorage.setItem(
+          DELETED_ORDERS_KEY,
+          JSON.stringify(deletedCodes.slice(-200))
+        );
+      }
+    }
+  } catch (err) {
+    console.error("deleteFromLocalStorage error:", err);
+  }
+}
+
+/** Đọc offline orders thật (loại bỏ đơn mẫu và các đơn đã bị xoá trong Tombstone) */
 export function getFromLocalStorage(): RoofingOrder[] {
   if (typeof window === "undefined") return [];
   try {
     const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
     if (!stored) return [];
+
+    const deletedCodes = new Set<string>(
+      JSON.parse(localStorage.getItem(DELETED_ORDERS_KEY) || "[]")
+    );
+
     const parsed = JSON.parse(stored) as RoofingOrder[];
-    const real = parsed.filter((o) => !isSampleOrder(o));
+    const real = parsed.filter(
+      (o) => !isSampleOrder(o) && !deletedCodes.has(o.orderCode)
+    );
     if (real.length !== parsed.length) {
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(real));
     }
