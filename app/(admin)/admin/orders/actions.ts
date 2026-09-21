@@ -101,6 +101,16 @@ export async function saveRoofingOrderAction(order: RoofingOrder): Promise<{
     }
 
     // 1. Chuẩn hóa dữ liệu đơn hàng chính
+    let finalNote = order.customer.note?.trim() || null;
+    if (order.unpaidAmount && Number(order.unpaidAmount) > 0) {
+      const unpaidTag = `[HĐ chưa thanh toán: ${new Intl.NumberFormat("vi-VN").format(Math.round(order.unpaidAmount))} đ]`;
+      if (!finalNote) {
+        finalNote = unpaidTag;
+      } else if (!finalNote.includes("[HĐ chưa thanh toán:")) {
+        finalNote = `${finalNote} | ${unpaidTag}`;
+      }
+    }
+
     const orderPayload = {
       order_code: order.orderCode,
       customer_name: order.customer.name?.trim() || "Khách lẻ",
@@ -112,7 +122,7 @@ export async function saveRoofingOrderAction(order: RoofingOrder): Promise<{
       deposit: Number(order.deposit) || 0,
       remaining_amount: Number(order.remainingAmount) || 0,
       status: order.status || "pending",
-      note: order.customer.note?.trim() || null,
+      note: finalNote,
       updated_at: new Date().toISOString(),
     };
 

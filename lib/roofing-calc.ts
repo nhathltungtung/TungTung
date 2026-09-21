@@ -71,12 +71,16 @@ export function calculateOrderTotals(
   roofingGroups: RoofingGroup[],
   accessories: AccessoryItem[],
   discount: number = 0,
-  deposit: number = 0
+  deposit: number = 0,
+  unpaidAmount: number = 0
 ): { totalAmount: number; remainingAmount: number; roofingTotal: number; accessoriesTotal: number } {
   const roofingTotal = roofingGroups.reduce((sum, g) => sum + (g.subtotal || 0), 0);
   const accessoriesTotal = accessories.reduce((sum, a) => sum + (a.subtotal || 0), 0);
   const totalAmount = roofingTotal + accessoriesTotal;
-  const remainingAmount = Math.max(0, totalAmount - (Number(discount) || 0) - (Number(deposit) || 0));
+  const remainingAmount = Math.max(
+    0,
+    totalAmount - (Number(discount) || 0) - (Number(deposit) || 0) + (Number(unpaidAmount) || 0)
+  );
 
   return {
     totalAmount,
@@ -91,6 +95,25 @@ export function calculateOrderTotals(
  */
 export function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("vi-VN").format(Math.round(amount)) + " đ";
+}
+
+/**
+ * Định dạng số tiền nhập vào input với dấu chấm phân cách hàng nghìn (VD: 100000000000 -> "100.000.000.000")
+ */
+export function formatMoneyInput(value?: number | string | null): string {
+  if (value === undefined || value === null || value === "" || value === 0) return "";
+  const digits = String(value).replace(/\D/g, "");
+  if (!digits) return "";
+  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+}
+
+/**
+ * Phân tích chuỗi số tiền có dấu chấm sang số nguyên (VD: "100.000.000.000" -> 100000000000)
+ */
+export function parseMoneyInput(formatted?: string | null): number {
+  if (!formatted) return 0;
+  const digits = formatted.replace(/\D/g, "");
+  return digits ? parseInt(digits, 10) : 0;
 }
 
 /**

@@ -47,7 +47,8 @@ export interface RoofingOrder {
   accessories: AccessoryItem[];
   discount: number; // Giảm giá / Chiết khấu
   deposit: number; // Tiền khách đặt cọc / trả trước
+  unpaidAmount?: number; // Tiền từ các HĐ chưa thanh toán / nợ cũ
   totalAmount: number; // Tổng giá trị đơn hàng
-  remainingAmount: number; // Còn lại phải thu = totalAmount - discount - deposit
+  remainingAmount: number; // Còn lại phải thu = (totalAmount - discount - deposit) + unpaidAmount
   status: RoofingOrderStatus;
 }

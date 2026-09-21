@@ -100,6 +100,17 @@ export function mapDbOrderToRoofingOrder(row: DbOrderRow): RoofingOrder {
     accessories: accessories,
     discount: Number(row.discount) || 0,
     deposit: Number(row.deposit) || 0,
+    unpaidAmount: (() => {
+      const direct = Number((row as any).unpaid_amount);
+      if (!isNaN(direct) && direct > 0) return direct;
+      if (row.note) {
+        const match = row.note.match(/\[HĐ chưa thanh toán:\s*([0-9.,]+)\s*đ?\]/);
+        if (match && match[1]) {
+          return Number(match[1].replace(/[.,]/g, "")) || 0;
+        }
+      }
+      return 0;
+    })(),
     totalAmount: Number(row.total_amount) || 0,
     remainingAmount: Number(row.remaining_amount) || 0,
     status: row.status,

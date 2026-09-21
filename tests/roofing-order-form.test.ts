@@ -10,6 +10,8 @@ import {
   calculateOrderTotals,
   formatCurrency,
   formatNumber,
+  formatMoneyInput,
+  parseMoneyInput,
   numberToVietnameseWords,
   SAMPLE_EXCEL_ORDER,
 } from "@/lib/roofing-calc";
@@ -57,6 +59,7 @@ describe("Tạo Đơn Hàng & Bàn Tính Cắt Tôn - Toàn Bộ Chức Năng & 
       expect(order.remainingAmount).toBe(0);
       expect(order.discount).toBe(0);
       expect(order.deposit).toBe(0);
+      expect(order.unpaidAmount).toBe(0);
       expect(order.status).toBe("pending");
     });
 
@@ -402,6 +405,40 @@ describe("Tạo Đơn Hàng & Bàn Tính Cắt Tôn - Toàn Bộ Chức Năng & 
       expect(words.toLowerCase()).toContain("một triệu bảy trăm nghìn đồng");
     });
 
+    it("Bổ sung HĐ chưa thanh toán (unpaidAmount) cộng dồn chính xác vào Còn lại phải thu (remainingAmount)", () => {
+      const group = calculateRoofingGroup({
+        id: "g1",
+        productName: "Tôn Hoa Sen 0.45mm",
+        width: 1.08,
+        unitPrice: 92500,
+        items: [{ id: "c1", length: 6, quantity: 4, totalMeters: 24 }],
+      });
+      // 24 * 1.08 * 92,500 = 2,397,600 đ
+      const acc = calculateAccessory({
+        id: "a1",
+        name: "Vít bắn tôn",
+        unit: "Bịch",
+        quantity: 2,
+        unitPrice: 100000,
+      });
+      // 2 * 100,000 = 200,000 đ
+      // Tổng tiền hàng = 2,397,600 + 200,000 = 2,597,600 đ
+
+      const discount = 97600; // Giảm giá
+      const deposit = 1000000; // Khách cọc 1 triệu
+      const unpaidAmount = 1500000; // HĐ chưa thanh toán (nợ đơn cũ 1.5 triệu)
+
+      const totals = calculateOrderTotals([group], [acc], discount, deposit, unpaidAmount);
+
+      expect(totals.totalAmount).toBe(2597600);
+      // Còn lại = (2,597,600 - 97,600 - 1,000,000) + 1,500,000 = 1,500,000 + 1,500,000 = 3,000,000 đ
+      expect(totals.remainingAmount).toBe(3000000);
+
+      // Đọc số tiền bằng chữ phản ánh đúng số còn lại sau khi cộng HĐ cũ
+      const words = numberToVietnameseWords(totals.remainingAmount);
+      expect(words.toLowerCase()).toContain("ba triệu đồng chẵn");
+    });
+
     it("Đọc số tiền bằng chữ tiếng Việt chính xác với nhiều mức giá trị khác nhau", () => {
       expect(numberToVietnameseWords(0)).toBe("Không đồng");
       expect(numberToVietnameseWords(500000)).toBe("Năm trăm nghìn đồng chẵn.");
@@ -415,6 +452,30 @@ describe("Tạo Đơn Hàng & Bàn Tính Cắt Tôn - Toàn Bộ Chức Năng & 
       const formatted = formatCurrency(6680844);
       expect(formatted).toMatch(/6[.,]680[.,]844/);
       expect(formatted).toContain("đ");
+    });
+
+    it("Định dạng số tiền trong input có dấu chấm phân cách hàng nghìn (formatMoneyInput & parseMoneyInput)", () => {
+      // Số tiền lớn 100 tỷ
+      expect(formatMoneyInput(100000000000)).toBe("100.000.000.000");
+      expect(parseMoneyInput("100.000.000.000")).toBe(100000000000);
+
+      // Đơn giá tôn và phụ kiện
+      expect(formatMoneyInput(92500)).toBe("92.500");
+      expect(parseMoneyInput("92.500")).toBe(92500);
+
+      expect(formatMoneyInput(115000)).toBe("115.000");
+      expect(parseMoneyInput("115.000")).toBe(115000);
+
+      // 1 nghìn và các số nhỏ
+      expect(formatMoneyInput(1000)).toBe("1.000");
+      expect(formatMoneyInput(500)).toBe("500");
+
+      // Xử lý giá trị rỗng / 0
+      expect(formatMoneyInput(0)).toBe("");
+      expect(formatMoneyInput(null)).toBe("");
+      expect(formatMoneyInput(undefined)).toBe("");
+      expect(parseMoneyInput("")).toBe(0);
+      expect(parseMoneyInput(null)).toBe(0);
     });
   });
 

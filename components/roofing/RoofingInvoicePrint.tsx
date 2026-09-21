@@ -36,8 +36,8 @@ export function RoofingInvoicePrint({
   }
   totalDataLines += order.accessories.filter((a) => a.name?.trim()).length;
 
-  // Số dòng trống bổ sung để bảng đạt ít nhất 16-20 dòng giống mẫu giấy
-  const MIN_TABLE_ROWS = 16;
+  // Số dòng trống bổ sung để bảng đạt tối thiểu 10 dòng gọn gàng, tiết kiệm giấy
+  const MIN_TABLE_ROWS = 10;
   const emptyRowsCount = Math.max(0, MIN_TABLE_ROWS - totalDataLines);
 
   return (
@@ -262,7 +262,7 @@ export function RoofingInvoicePrint({
       </div>
 
       {/* Khối thanh toán chiết khấu / đặt cọc nếu có */}
-      {(order.discount > 0 || order.deposit > 0) && (
+      {(order.discount > 0 || order.deposit > 0 || ((order.unpaidAmount || 0) > 0)) && (
         <div className="flex justify-end mb-2 print:break-inside-avoid">
           <div className="w-72 md:w-80 space-y-0.5 text-xs md:text-sm border border-black p-2 bg-slate-50 print:bg-transparent print:p-1.5">
             {order.discount > 0 && (
@@ -275,6 +275,12 @@ export function RoofingInvoicePrint({
               <div className="flex justify-between py-0.5 text-emerald-800">
                 <span>Khách đã đặt cọc:</span>
                 <span className="font-bold">-{formatCurrency(order.deposit)}</span>
+              </div>
+            )}
+            {((order.unpaidAmount || 0) > 0) && (
+              <div className="flex justify-between py-0.5 text-amber-900">
+                <span>HĐ chưa thanh toán:</span>
+                <span className="font-bold">+{formatCurrency(order.unpaidAmount || 0)}</span>
               </div>
             )}
             <div className="border-t border-black pt-1 flex justify-between font-bold">

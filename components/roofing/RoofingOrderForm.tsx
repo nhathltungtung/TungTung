@@ -12,6 +12,8 @@ import {
   calculateOrderTotals,
   formatCurrency,
   formatNumber,
+  formatMoneyInput,
+  parseMoneyInput,
   numberToVietnameseWords,
   cleanProductName,
 } from "@/lib/roofing-calc";
@@ -86,12 +88,13 @@ export function createBlankRoofingOrder(isDynamic = false): RoofingOrder {
     accessories: [],
     discount: 0,
     deposit: 0,
+    unpaidAmount: 0,
     totalAmount: 0,
     remainingAmount: 0,
     status: "pending",
   };
 
-  const totals = calculateOrderTotals(blankOrder.roofingGroups, blankOrder.accessories, 0, 0);
+  const totals = calculateOrderTotals(blankOrder.roofingGroups, blankOrder.accessories, 0, 0, 0);
   return { ...blankOrder, ...totals };
 }
 
@@ -103,6 +106,7 @@ export function initRoofingOrderState(
   if (mode === "edit" && initialOrder) {
     return {
       ...initialOrder,
+      unpaidAmount: initialOrder.unpaidAmount || 0,
       customer: { ...initialOrder.customer },
       roofingGroups: initialOrder.roofingGroups.map((g) => ({
         ...g,
@@ -255,7 +259,7 @@ export function RoofingOrderForm({
           [field]: value,
         });
       });
-      const totals = calculateOrderTotals(newGroups, prev.accessories, prev.discount, prev.deposit);
+      const totals = calculateOrderTotals(newGroups, prev.accessories, prev.discount, prev.deposit, prev.unpaidAmount || 0);
       return {
         ...prev,
         roofingGroups: newGroups,
@@ -277,7 +281,7 @@ export function RoofingOrderForm({
           unitPrice: product.unitPrice,
         });
       });
-      const totals = calculateOrderTotals(newGroups, prev.accessories, prev.discount, prev.deposit);
+      const totals = calculateOrderTotals(newGroups, prev.accessories, prev.discount, prev.deposit, prev.unpaidAmount || 0);
       return {
         ...prev,
         roofingGroups: newGroups,
@@ -317,7 +321,7 @@ export function RoofingOrderForm({
         });
       });
 
-      const totals = calculateOrderTotals(newGroups, prev.accessories, prev.discount, prev.deposit);
+      const totals = calculateOrderTotals(newGroups, prev.accessories, prev.discount, prev.deposit, prev.unpaidAmount || 0);
       return {
         ...prev,
         roofingGroups: newGroups,
@@ -344,7 +348,7 @@ export function RoofingOrderForm({
           items: [...g.items, newItem],
         });
       });
-      const totals = calculateOrderTotals(newGroups, prev.accessories, prev.discount, prev.deposit);
+      const totals = calculateOrderTotals(newGroups, prev.accessories, prev.discount, prev.deposit, prev.unpaidAmount || 0);
       return {
         ...prev,
         roofingGroups: newGroups,
@@ -371,7 +375,7 @@ export function RoofingOrderForm({
           items: filtered.length > 0 ? filtered : [{ id: `cut-${Date.now()}`, length: 0, quantity: 0, totalMeters: 0 }],
         });
       });
-      const totals = calculateOrderTotals(newGroups, prev.accessories, prev.discount, prev.deposit);
+      const totals = calculateOrderTotals(newGroups, prev.accessories, prev.discount, prev.deposit, prev.unpaidAmount || 0);
       return {
         ...prev,
         roofingGroups: newGroups,
@@ -392,7 +396,7 @@ export function RoofingOrderForm({
 
     setOrder((prev) => {
       const newGroups = [...prev.roofingGroups, newGroup];
-      const totals = calculateOrderTotals(newGroups, prev.accessories, prev.discount, prev.deposit);
+      const totals = calculateOrderTotals(newGroups, prev.accessories, prev.discount, prev.deposit, prev.unpaidAmount || 0);
       return {
         ...prev,
         roofingGroups: newGroups,
@@ -409,7 +413,7 @@ export function RoofingOrderForm({
         if (a.id !== id) return a;
         return calculateAccessory({ ...a, [field]: value });
       });
-      const totals = calculateOrderTotals(prev.roofingGroups, newAccessories, prev.discount, prev.deposit);
+      const totals = calculateOrderTotals(prev.roofingGroups, newAccessories, prev.discount, prev.deposit, prev.unpaidAmount || 0);
       return {
         ...prev,
         accessories: newAccessories,
@@ -430,7 +434,7 @@ export function RoofingOrderForm({
 
     setOrder((prev) => {
       const newAccessories = [...prev.accessories, newAcc];
-      const totals = calculateOrderTotals(prev.roofingGroups, newAccessories, prev.discount, prev.deposit);
+      const totals = calculateOrderTotals(prev.roofingGroups, newAccessories, prev.discount, prev.deposit, prev.unpaidAmount || 0);
       return {
         ...prev,
         accessories: newAccessories,
@@ -453,7 +457,7 @@ export function RoofingOrderForm({
           unitPrice: item.unitPrice,
         });
       });
-      const totals = calculateOrderTotals(prev.roofingGroups, newAccessories, prev.discount, prev.deposit);
+      const totals = calculateOrderTotals(prev.roofingGroups, newAccessories, prev.discount, prev.deposit, prev.unpaidAmount || 0);
       return {
         ...prev,
         accessories: newAccessories,
@@ -478,7 +482,7 @@ export function RoofingOrderForm({
 
     setOrder((prev) => {
       const newAccessories = [...prev.accessories, newAcc];
-      const totals = calculateOrderTotals(prev.roofingGroups, newAccessories, prev.discount, prev.deposit);
+      const totals = calculateOrderTotals(prev.roofingGroups, newAccessories, prev.discount, prev.deposit, prev.unpaidAmount || 0);
       return {
         ...prev,
         accessories: newAccessories,
@@ -492,7 +496,7 @@ export function RoofingOrderForm({
   const removeAccessory = (id: string) => {
     setOrder((prev) => {
       const newAccessories = prev.accessories.filter((a) => a.id !== id);
-      const totals = calculateOrderTotals(prev.roofingGroups, newAccessories, prev.discount, prev.deposit);
+      const totals = calculateOrderTotals(prev.roofingGroups, newAccessories, prev.discount, prev.deposit, prev.unpaidAmount || 0);
       return {
         ...prev,
         accessories: newAccessories,
@@ -501,14 +505,18 @@ export function RoofingOrderForm({
     });
   };
 
-  // 10. Cập nhật chiết khấu & đặt cọc
-  const updatePayment = (field: "discount" | "deposit", value: number) => {
+  // 10. Cập nhật chiết khấu, đặt cọc & HĐ chưa thanh toán
+  const updatePayment = (field: "discount" | "deposit" | "unpaidAmount", value: number) => {
     setOrder((prev) => {
+      const discount = field === "discount" ? value : prev.discount;
+      const deposit = field === "deposit" ? value : prev.deposit;
+      const unpaidAmount = field === "unpaidAmount" ? value : (prev.unpaidAmount || 0);
       const totals = calculateOrderTotals(
         prev.roofingGroups,
         prev.accessories,
-        field === "discount" ? value : prev.discount,
-        field === "deposit" ? value : prev.deposit
+        discount,
+        deposit,
+        unpaidAmount
       );
       return {
         ...prev,
@@ -856,7 +864,7 @@ export function RoofingOrderForm({
                       onClick={() => {
                         setOrder((prev) => {
                           const newGroups = prev.roofingGroups.filter((g) => g.id !== group.id);
-                          const totals = calculateOrderTotals(newGroups, prev.accessories, prev.discount, prev.deposit);
+                          const totals = calculateOrderTotals(newGroups, prev.accessories, prev.discount, prev.deposit, prev.unpaidAmount || 0);
                           return { ...prev, roofingGroups: newGroups, ...totals };
                         });
                         toast.success("Đã xoá nhóm tôn!");
@@ -995,11 +1003,11 @@ export function RoofingOrderForm({
                     Đơn Giá (đ/m²)
                   </label>
                   <input
-                    type="number"
-                    step="1000"
+                    type="text"
+                    inputMode="numeric"
                     placeholder="0"
-                    value={group.unitPrice || ""}
-                    onChange={(e) => updateGroupInfo(group.id, "unitPrice", parseFloat(e.target.value) || 0)}
+                    value={formatMoneyInput(group.unitPrice)}
+                    onChange={(e) => updateGroupInfo(group.id, "unitPrice", parseMoneyInput(e.target.value))}
                     className="w-full h-9 px-3 font-mono text-right text-xs font-bold rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-[#1a222c] text-slate-900 dark:text-white focus:ring-2 focus:ring-primary"
                   />
                 </div>
@@ -1384,12 +1392,12 @@ export function RoofingOrderForm({
                       </td>
                       <td className="py-2 px-3 text-right">
                         <input
-                          type="number"
-                          step="1000"
+                          type="text"
+                          inputMode="numeric"
                           placeholder="0"
-                          value={acc.unitPrice || ""}
+                          value={formatMoneyInput(acc.unitPrice)}
                           onChange={(e) =>
-                            updateAccessory(acc.id, "unitPrice", parseFloat(e.target.value) || 0)
+                            updateAccessory(acc.id, "unitPrice", parseMoneyInput(e.target.value))
                           }
                           className="w-full h-9 px-2 text-right font-mono text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#1a222c] text-slate-900 dark:text-white focus:ring-2 focus:ring-primary"
                         />
@@ -1444,12 +1452,12 @@ export function RoofingOrderForm({
               <span className="text-slate-600 dark:text-slate-400 font-medium">Chiết khấu / Giảm giá:</span>
               <div className="flex items-center gap-1">
                 <input
-                  type="number"
-                  step="10000"
-                  value={order.discount || ""}
+                  type="text"
+                  inputMode="numeric"
+                  value={formatMoneyInput(order.discount)}
                   placeholder="0"
-                  onChange={(e) => updatePayment("discount", parseFloat(e.target.value) || 0)}
-                  className="w-32 px-2 py-1 text-right font-mono text-xs rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#1a222c] text-rose-600 dark:text-rose-400 font-bold"
+                  onChange={(e) => updatePayment("discount", parseMoneyInput(e.target.value))}
+                  className="w-36 sm:w-44 px-2 py-1 text-right font-mono text-xs rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#1a222c] text-rose-600 dark:text-rose-400 font-bold"
                 />
                 <span className="text-xs text-slate-400">đ</span>
               </div>
@@ -1459,12 +1467,27 @@ export function RoofingOrderForm({
               <span className="text-slate-600 dark:text-slate-400 font-medium">Khách đã đặt cọc / Trả trước:</span>
               <div className="flex items-center gap-1">
                 <input
-                  type="number"
-                  step="50000"
-                  value={order.deposit || ""}
+                  type="text"
+                  inputMode="numeric"
+                  value={formatMoneyInput(order.deposit)}
                   placeholder="0"
-                  onChange={(e) => updatePayment("deposit", parseFloat(e.target.value) || 0)}
-                  className="w-32 px-2 py-1 text-right font-mono text-xs rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#1a222c] text-emerald-600 dark:text-emerald-400 font-bold"
+                  onChange={(e) => updatePayment("deposit", parseMoneyInput(e.target.value))}
+                  className="w-36 sm:w-44 px-2 py-1 text-right font-mono text-xs rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#1a222c] text-emerald-600 dark:text-emerald-400 font-bold"
+                />
+                <span className="text-xs text-slate-400">đ</span>
+              </div>
+            </div>
+
+            <div className="flex justify-between items-center py-1">
+              <span className="text-slate-600 dark:text-slate-400 font-medium">HĐ chưa thanh toán:</span>
+              <div className="flex items-center gap-1">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={formatMoneyInput(order.unpaidAmount)}
+                  placeholder="0"
+                  onChange={(e) => updatePayment("unpaidAmount", parseMoneyInput(e.target.value))}
+                  className="w-36 sm:w-44 px-2 py-1 text-right font-mono text-xs rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#1a222c] text-amber-600 dark:text-amber-400 font-bold"
                 />
                 <span className="text-xs text-slate-400">đ</span>
               </div>
