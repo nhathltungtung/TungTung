@@ -14,7 +14,7 @@ export function DefaultLayout({ children }: DefaultLayoutProps) {
     <SidebarProvider>
       <div className="flex h-screen overflow-hidden bg-slate-100 dark:bg-[#10172a] print:h-auto print:overflow-visible print:bg-white print:block">
         {/* Sidebar */}
-        <div className="print:hidden">
+        <div className="shrink-0 print:hidden">
           <Sidebar />
         </div>
 

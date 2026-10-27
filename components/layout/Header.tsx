@@ -4,6 +4,8 @@ import React, { useState } from "react";
 import Link from "next/link";
 import {
   Menu,
+  PanelLeftClose,
+  PanelLeftOpen,
   Search,
   Bell,
   ChevronDown,
@@ -20,11 +22,19 @@ import { useTranslation } from "@/components/i18n/LanguageProvider";
 import { useUser } from "@/hooks/useUser";
 
 export function Header() {
-  const { toggleSidebar } = useSidebar();
+  const { toggleSidebar, isCollapsed, toggleCollapse } = useSidebar();
   const { t } = useTranslation();
   const { user, role, signOut } = useUser();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+
+  const handleToggleMenu = () => {
+    if (typeof window !== "undefined" && window.innerWidth >= 1024) {
+      toggleCollapse();
+    } else {
+      toggleSidebar();
+    }
+  };
 
   const displayName = user?.fullName || "Admin Master";
   const displayEmail = user?.email || "admin@tailadmin.dev";
@@ -37,14 +47,19 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-30 flex items-center justify-between h-20 px-6 bg-white dark:bg-[#1c2434] border-b border-[#e2e8f0] dark:border-[#2e3a47] shadow-xs transition-colors">
-      {/* Left side: Hamburger Toggle & Search Input */}
+      {/* Left side: Sidebar Toggle & Search Input */}
       <div className="flex items-center gap-4 flex-1 max-w-xl">
         <button
-          onClick={toggleSidebar}
-          className="p-2 text-[#64748b] dark:text-[#8a99ad] hover:text-[#1e293b] dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-[#24303f] transition-colors lg:hidden"
-          aria-label="Toggle Navigation Menu"
+          onClick={handleToggleMenu}
+          className="p-2 text-[#64748b] dark:text-[#8a99ad] hover:text-[#1e293b] dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-[#24303f] active:scale-95 transition-all cursor-pointer"
+          aria-label={isCollapsed ? "Mở rộng menu bên trái (Ctrl+B)" : "Thu gọn menu bên trái (Ctrl+B)"}
+          title={isCollapsed ? "Mở rộng menu bên trái (Ctrl+B)" : "Thu gọn menu bên trái (Ctrl+B)"}
         >
-          <Menu className="w-6 h-6" />
+          {isCollapsed ? (
+            <PanelLeftOpen className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+          ) : (
+            <PanelLeftClose className="w-5 h-5" />
+          )}
         </button>
 
         {/* Search Bar */}
