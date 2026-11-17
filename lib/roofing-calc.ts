@@ -125,6 +125,15 @@ export function formatNumber(value: number, maxDecimals: number = 4): string {
 }
 
 /**
+ * Định dạng chiều dài (m) luôn đủ 2 chữ số thập phân khi in hoá đơn: 1.6 → "1.60", 2 → "2.00"
+ */
+export function formatLength(value: number): string {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "0.00";
+  return n.toFixed(2);
+}
+
+/**
  * Chuẩn hoá tên sản phẩm khi hiển thị / in ấn / xuất Excel:
  * Loại bỏ mã sản phẩm / mã kho đi kèm phía trước (VD: "OLPXX — Tôn...", "NOC600O — Nóc 600", "[H132614] 13x26...", "OLP1LD - Tôn...")
  * Chỉ hiển thị tên sản phẩm thuần túy không chứa mã theo đúng yêu cầu nghiệp vụ.

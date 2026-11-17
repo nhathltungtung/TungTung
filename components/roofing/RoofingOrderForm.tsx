@@ -336,8 +336,9 @@ export function RoofingOrderForm({
     const newItem: RoofingCutItem = {
       id: newItemId,
       length: defaultLength || 0,
-      quantity: 1,
-      totalMeters: defaultLength || 0,
+      // Để trống số tấm: dòng mới tự sinh khi nhấn Enter không được cộng sẵn 1 tấm vào tổng loại
+      quantity: 0,
+      totalMeters: 0,
     };
 
     setOrder((prev) => {
@@ -1071,7 +1072,6 @@ export function RoofingOrderForm({
                             data-field="quantity"
                             type="number"
                             min="0"
-                            placeholder="0"
                             value={item.quantity || ""}
                             onChange={(e) =>
                               updateCutItem(group.id, item.id, "quantity", parseInt(e.target.value, 10) || 0)

@@ -2,7 +2,7 @@
 
 import React from "react";
 import { RoofingOrder } from "@/types/roofing";
-import { formatCurrency, formatNumber, numberToVietnameseWords, cleanProductName } from "@/lib/roofing-calc";
+import { formatCurrency, formatNumber, formatLength, numberToVietnameseWords, cleanProductName } from "@/lib/roofing-calc";
 
 interface RoofingInvoicePrintProps {
   order: RoofingOrder;
@@ -150,7 +150,7 @@ export function RoofingInvoicePrint({
                           </td>
                         ) : null}
                         <td className="border border-black px-1 py-1 text-right">
-                          {item.length ? formatNumber(item.length, 2) : "---"}
+                          {item.length ? formatLength(item.length) : "---"}
                         </td>
                         <td className="border border-black px-1 py-1 text-right">
                           {item.quantity || "---"}
@@ -174,7 +174,7 @@ export function RoofingInvoicePrint({
                       {sttCounter++}
                     </td>
                     <td className="border border-black px-1.5 py-1 italic font-bold">
-                      Tổng loại: {cleanProductName(group.productName) || "Tôn"}
+                      Tổng loại
                     </td>
                     <td className="border border-black px-1 py-1 text-right text-slate-400">---</td>
                     <td className="border border-black px-1 py-1 text-right font-bold">
@@ -210,7 +210,7 @@ export function RoofingInvoicePrint({
                   {cleanProductName(acc.name)}
                 </td>
                 <td className="border border-black px-1 py-1 text-right">
-                  {acc.length ? formatNumber(acc.length, 2) : "---"}
+                  {acc.length ? formatLength(acc.length) : "---"}
                 </td>
                 <td className="border border-black px-1 py-1 text-right">
                   {acc.pieces || "---"}
