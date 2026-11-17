@@ -156,7 +156,7 @@ export function RoofingInvoicePrint({
                           {item.quantity || "---"}
                         </td>
                         <td className="border border-black px-1 py-1 text-right">
-                          {item.totalMeters ? formatNumber(item.totalMeters, 2) : "---"}
+                          {item.totalMeters ? formatLength(item.totalMeters) : "---"}
                         </td>
                         <td className="border border-black px-1 py-1 text-center">
                           {idx === 0 ? "" : ""}
@@ -181,7 +181,7 @@ export function RoofingInvoicePrint({
                       {group.totalPieces}
                     </td>
                     <td className="border border-black px-1 py-1 text-right font-bold">
-                      {formatNumber(group.totalMeters, 2)}
+                      {formatLength(group.totalMeters)}
                     </td>
                     <td className="border border-black px-1 py-1 text-center">
                       {formatNumber(group.width, 2)}
@@ -216,7 +216,8 @@ export function RoofingInvoicePrint({
                   {acc.pieces || "---"}
                 </td>
                 <td className="border border-black px-1 py-1 text-right font-medium">
-                  {formatNumber(acc.quantity, 2)}
+                  {/* Phụ kiện tính theo mét (có chiều dài/số tấm) hiện 2 số thập phân như cột Mét dài; phụ kiện đếm cái giữ nguyên */}
+                  {acc.length || acc.pieces ? formatLength(acc.quantity) : formatNumber(acc.quantity, 2)}
                 </td>
                 <td className="border border-black px-1 py-1 text-center font-medium">
                   {acc.unit}
