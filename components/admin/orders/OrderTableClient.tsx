@@ -330,6 +330,10 @@ export function OrderTableClient({ initialOrders }: OrderTableClientProps) {
       },
       {
         id: "actions",
+        // 5 nút (Sửa, In, Excel, Hoàn tất, Xoá) cần ~184px; mặc định 150px làm nút Sửa bị cắt góc
+        size: 200,
+        minSize: 200,
+        enableResizing: false,
         header: () => <div className="text-right">Thao Tác</div>,
         cell: ({ row }) => {
           const order = row.original;
